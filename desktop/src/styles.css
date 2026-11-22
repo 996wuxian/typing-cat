@@ -107,19 +107,61 @@ button { font: inherit; }
 .stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
 canvas, #floating { position: absolute; inset: 0; width: 100%; height: 100%; }
 #floating { pointer-events: none; }
-#floating span {
+#floating .key-chip {
   position: absolute;
   transform: translate(-50%, -50%);
-  min-width: 26px;
-  padding: 5px 10px;
-  border: 1px solid #a0a9ba;
-  border-radius: 7px;
-  background: #f8f9fc;
-  box-shadow: 0 3px 12px #33394624;
-  color: #30394a;
-  text-align: center;
-  font: 700 13px/1.1 system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  min-width: 29px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #586174;
+  border-radius: 6px;
+  background: linear-gradient(#fff, #f1f3f7);
+  box-shadow: 0 3px 0 #4f586b, 0 5px 10px #17203250, inset 0 1px 0 #fff;
+  color: #252f40;
+  white-space: nowrap;
+  font: 750 13px/1 system-ui, sans-serif;
 }
+.key-chip svg {
+  width: 17px;
+  height: 17px;
+}
+.anger-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  color: #dd3048;
+  transform: translate(-50%, -50%);
+  font: 30px/1 "Segoe UI Emoji", sans-serif;
+  filter: drop-shadow(0 2px 3px #42142553);
+}
+.pet-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+.pet-heart {
+  color: #f15789;
+  -webkit-text-stroke: 1.5px #ffe4ef;
+  font: 700 32px/1 system-ui, sans-serif;
+  filter: drop-shadow(0 2px 3px #57274444);
+}
+.pet-meow {
+  padding: 4px 8px 5px;
+  border: 1px solid #f0a6c0;
+  border-radius: 10px 10px 10px 3px;
+  background: #fff4fa;
+  color: #9c345b;
+  box-shadow: 0 2px 6px #4821362b;
+  white-space: nowrap;
+  font: 750 14px/1 system-ui, sans-serif;
+}
+.stage[data-petting="true"] canvas { cursor: grabbing; }
 #status {
   position: absolute;
   inset: auto 10px clamp(9px, 3vh, 23px);

@@ -7,6 +7,9 @@ const returnDuration = 0.168;
 const neutralRotation = new Quaternion();
 const mouseGrip = new Quaternion().setFromEuler(new Euler(.23, .22, -.12, 'YXZ'));
 const mousePress = new Quaternion().setFromEuler(new Euler(.31, .22, -.12, 'YXZ'));
+const crossKeyboard = new Quaternion().setFromEuler(new Euler(.25, .73, .18, 'YXZ'));
+const pawPad = new Vector3(0, -.068, .087);
+const outerToes = new Vector3(.031, -.064, .091);
 
 function makePaw(model, suffix) {
   const shoulder = model.getObjectByName(`ForeShoulder_${suffix}`);
@@ -53,8 +56,8 @@ function makePaw(model, suffix) {
   };
 }
 
-function wristAt(surface, rotation = neutralRotation) {
-  return surface.clone().sub(new Vector3(0, -.068, .087).applyQuaternion(rotation));
+function wristAt(surface, rotation = neutralRotation, contact = pawPad) {
+  return surface.clone().sub(contact.clone().applyQuaternion(rotation));
 }
 
 export function createTypingPaws(model) {
@@ -66,8 +69,11 @@ export function createTypingPaws(model) {
   return {
     tap(surface, time, side = surface.x < 0.018 ? 'left' : 'right', held = false) {
       const arm = side === 'left' ? left : right;
+      const crossing = side === 'left' && surface.x > .065;
+      const rotation = crossing ? crossKeyboard : neutralRotation;
       arm.motion = {
-        time, from: arm.wrist.clone(), contact: wristAt(surface),
+        time, from: arm.wrist.clone(), rotation,
+        contact: wristAt(surface, rotation, crossing ? outerToes : pawPad),
         releaseAt: held ? Infinity : time + holdTime,
       };
     },
@@ -90,7 +96,8 @@ export function createTypingPaws(model) {
         const motion = arm.motion;
         const age = motion ? time - motion.time : Infinity;
         const canGrip = grip && (grip.pressed || !motion || time >= motion.releaseAt + returnDuration);
-        arm.rotation.slerp(canGrip ? grip.rotation : neutralRotation, blend);
+        const typingRotation = motion && time < motion.releaseAt ? motion.rotation : neutralRotation;
+        arm.rotation.slerp(canGrip ? grip.rotation : typingRotation, blend);
         if (canGrip) {
           arm.wrist.lerp(grip.wrist, blend);
         } else if (motion && age < approachTime) {

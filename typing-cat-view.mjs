@@ -7,6 +7,8 @@ import {
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { loadSeatedCat } from './seated-cat.mjs';
 import { createTypingPaws } from './typing-paws.mjs';
+import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
+import { createMeowPlayer } from './cat-meow.mjs';
 
 function letters(value) {
   return Array.from(value, name => [`Key${name}`, name]);
@@ -17,9 +19,9 @@ const rows = [
     ['Minus', '−'], ['Equal', '='], ['Backspace', '⌫', 1.5]],
   [['Tab', 'Tab', 1.35], ...letters('QWERTYUIOP'), ['BracketLeft', '['], ['BracketRight', ']']],
   [['CapsLock', 'Caps', 1.5], ...letters('ASDFGHJKL'), ['Semicolon', ';'], ['Quote', "'"], ['Enter', '↵', 1.75]],
-  [['ShiftLeft', '⇧', 1.75], ...letters('ZXCVBNM'), ['Comma', ','], ['Period', '.'], ['Slash', '/'], ['ShiftRight', '⇧', 2.5]],
+  [['ShiftLeft', 'Shift', 1.75], ...letters('ZXCVBNM'), ['Comma', ','], ['Period', '.'], ['Slash', '/'], ['ShiftRight', 'Shift', 2.5]],
   [['ControlLeft', 'Ctrl', 1.35], ['AltLeft', 'Alt', 1.4], ['Space', '', 6],
-    ['AltRight', 'Alt', 1.4], ['ArrowLeft', '←'], ['ArrowDown', '↓'], ['ArrowRight', '→']],
+    ['AltRight', 'Alt', 1.4], ['ArrowLeft', '←'], ['ArrowUp', '↑'], ['ArrowDown', '↓'], ['ArrowRight', '→']],
 ];
 
 const clock = () => performance.now() / 1000;
@@ -31,7 +33,7 @@ const mouseHomeX = .320;
 const mouseHomeZ = .264;
 const mouseButtonTravel = .005;
 
-function makeLabel(text, width, color) {
+function makeLabel(text, width, color, code) {
   const canvas = document.createElement('canvas');
   const long = String(text).length > 1;
   canvas.width = 192;
@@ -41,7 +43,12 @@ function makeLabel(text, width, color) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = color;
-  ctx.fillText(String(text), 96, 46, 176);
+  if (keyIcons[code]) {
+    ctx.strokeStyle = color;
+    paintKeyIcon(ctx, code, 96, 46, 70);
+  } else {
+    ctx.fillText(String(text), 96, 46, 176);
+  }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = 8;
@@ -86,7 +93,7 @@ function createKeyboard() {
       const tint = new Color(keyColor);
       const cap = new Mesh(shapes.get(size), new MeshStandardMaterial({ color: tint, roughness: .59 }));
       cap.position.set(column - size * unit / 2, capY, z);
-      if (label !== '') cap.add(makeLabel(label, width, labelColor));
+      if (label !== '') cap.add(makeLabel(label, width, labelColor, code));
       cap.userData.keyCode = code;
       keys.set(code, { cap, label: code === 'Space' ? '空格' : label, tint, started: -Infinity, releaseAt: -Infinity });
       board.add(cap);
@@ -341,17 +348,48 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   const activeColor = new Color('#a4b1cc');
   const floaters = [];
   const projected = new Vector3();
+  const head = cat.model.getObjectByName('Head');
+  const headCenter = new Vector3();
+  const headEdge = new Vector3();
+  const meow = createMeowPlayer(signal);
+  const petEffects = [];
+  const angerMark = document.createElement('div');
+  angerMark.className = 'anger-mark';
+  angerMark.textContent = '💢';
+  floatingLayer.append(angerMark);
+  const recentKeys = [];
+  let tenseUntil = -Infinity;
+  let tension = 0;
+  let pet = null;
+  let petBlend = 0;
   let lastInput = -Infinity;
-  let lastKeyboard = -Infinity;
   let lastMouseMove = -Infinity;
   let nextSpaceSide = 'left';
   const heldKeys = new Map();
   const activeHeldKey = { left: null, right: null };
   const mousePresses = new Map();
 
-  function showKey(label, time, point) {
+  function mouseInUse(time) {
+    return mousePresses.size > 0 || (!pet && time - lastMouseMove < .24);
+  }
+
+  function reserveMousePaw(time) {
+    if (!activeHeldKey.right) return;
+    for (const held of heldKeys.values()) {
+      if (held.side === 'right') held.side = 'left';
+    }
+    const next = [...heldKeys.values()].at(-1);
+    activeHeldKey.right = null;
+    activeHeldKey.left = next.code;
+    paws.release('right', time);
+    paws.tap(next.point, time, 'left', true);
+  }
+
+  function showKey(label, time, point, code) {
     const chip = document.createElement('span');
-    chip.textContent = label;
+    chip.className = 'key-chip';
+    if (keyIcons[code]) chip.append(keyIconElement(code));
+    else chip.textContent = label;
     floatingLayer.append(chip);
     floaters.push({ chip, time, point: point.clone() });
     if (floaters.length > 16) floaters.shift().chip.remove();
@@ -366,10 +404,15 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     const { x, z } = key.cap.position;
     const point = new Vector3(x, capY + capHeight * .5 - capTravel, z);
     let side = x < .018 ? 'left' : 'right';
+    const usingMouse = mouseInUse(time);
     if (code === 'Space') {
-      side = nextSpaceSide;
+      side = usingMouse ? 'left' : nextSpaceSide;
       point.x = x + (side === 'left' ? -.066 : .066);
-      nextSpaceSide = nextSpaceSide === 'left' ? 'right' : 'left';
+      if (!usingMouse) nextSpaceSide = side === 'left' ? 'right' : 'left';
+    }
+    if (usingMouse) {
+      reserveMousePaw(time);
+      side = 'left';
     }
     if (source) {
       heldKeys.set(code, { code, point, side, source });
@@ -377,8 +420,13 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     }
     if (source || !activeHeldKey[side]) paws.tap(point, time, side, Boolean(source));
     cat.setPointer(point.x * 1.6, -.56);
-    showKey(key.label, time, point);
-    lastInput = lastKeyboard = time;
+    showKey(key.label, time, point, code);
+    if (source) {
+      recentKeys.push(time);
+      while (recentKeys.length && time - recentKeys[0] > .72) recentKeys.shift();
+      if (recentKeys.length >= 6) tenseUntil = time + .95;
+    }
+    lastInput = time;
     return true;
   }
 
@@ -418,6 +466,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     const time = clock();
     button.started = lastInput = lastMouseMove = time;
     button.releaseAt = Infinity;
+    reserveMousePaw(time);
     const point = mouseSurface(side);
     showKey(side === 'left' ? '左键' : '右键', time, point);
   }
@@ -449,9 +498,16 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   window.addEventListener('blur', () => {
     releaseSource('foreground');
     releaseWindowMouse();
+    stopPetting();
   }, events);
-  window.addEventListener('pointerup', event => releaseMouse(`window:${event.button}`), events);
-  window.addEventListener('pointercancel', releaseWindowMouse, events);
+  window.addEventListener('pointerup', event => {
+    releaseMouse(`window:${event.button}`);
+    if (pet?.id === event.pointerId) stopPetting();
+  }, events);
+  window.addEventListener('pointercancel', event => {
+    releaseWindowMouse();
+    if (pet?.id === event.pointerId) stopPetting();
+  }, events);
 
   function readPointer(event) {
     const box = stage.getBoundingClientRect();
@@ -460,13 +516,90 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   }
 
   function followPointer(x, y) {
+    if (pet) return;
     cat.setPointer(x, y);
     lastInput = lastMouseMove = clock();
     mouseOffset.set(.012 * MathUtils.clamp(x, -1, 1),
       -.023 * MathUtils.clamp(y, -1, 1));
   }
 
+  function overHead() {
+    camera.updateMatrixWorld();
+    head.localToWorld(headCenter.set(.015, .13, .133)).project(camera);
+    head.localToWorld(headEdge.set(.174, .13, .133)).project(camera);
+    const radiusX = Math.abs(headEdge.x - headCenter.x);
+    head.localToWorld(headEdge.set(.015, .255, .133)).project(camera);
+    const radiusY = Math.abs(headEdge.y - headCenter.y);
+    return Math.hypot((pointer.x - headCenter.x) / radiusX, (pointer.y - headCenter.y) / radiusY) <= 1;
+  }
+
+  function stopPetting() {
+    if (!pet) return;
+    const id = pet.id;
+    pet = null;
+    if (stage.hasPointerCapture(id)) stage.releasePointerCapture(id);
+    delete stage.dataset.petting;
+    lastInput = clock();
+  }
+
+  function showPetEffect(time, isHeart) {
+    const effect = document.createElement('div');
+    effect.className = isHeart ? 'pet-effect pet-heart' : 'pet-effect pet-meow';
+    effect.textContent = isHeart ? '♥' : '喵';
+    floatingLayer.append(effect);
+    petEffects.push({ effect, time, isHeart, lifetime: isHeart ? 1.15 : 1.05 });
+  }
+
+  function animateReaction(time, seconds) {
+    const petting = Boolean(pet);
+    tension = MathUtils.damp(tension, !petting && time < tenseUntil ? 1 : 0, 9, seconds);
+    petBlend = MathUtils.damp(petBlend, petting ? 1 : 0, 7, seconds);
+    if (petting) {
+      const elapsed = time - pet.started;
+      if (time >= pet.nextHeart) {
+        showPetEffect(time, true);
+        pet.nextHeart = time + .92;
+      }
+      if (time >= pet.nextMeow) {
+        const duration = meow.play();
+        if (duration) showPetEffect(time, false);
+        pet.nextMeow = time + (duration ? Math.max(2.35, duration + .55) : .16);
+      }
+      const phase = Math.floor(elapsed / 1.28) % 3;
+      const sway = Math.sin(elapsed * 4.8 + pet.offsetX * 1.8);
+      const swipe = MathUtils.clamp(pet.offsetX * 1.5, -.65, .65);
+      const tilt = phase === 0 ? .15 * sway : phase === 1 ? .09 * swipe : -.20 - .07 * sway;
+      const nod = phase === 1 ? .20 + .12 * sway : .08 + .045 * sway;
+      cat.setPointer(0, 0);
+      cat.setReaction({
+        squint: petBlend,
+        blush: .92 * petBlend,
+        mouth: meow.mouthAmount(),
+        yaw: (.15 * swipe + (phase === 0 ? .15 * sway : 0)) * petBlend,
+        pitch: (nod - pet.offsetY * .10) * petBlend,
+        roll: tilt * petBlend,
+      });
+      return;
+    }
+    cat.setReaction({
+      tension,
+      squint: petBlend,
+      blush: .92 * petBlend,
+      mouth: meow.mouthAmount(),
+      yaw: .055 * Math.sin(time * 22) * tension,
+      pitch: .075 * tension,
+      roll: .037 * Math.sin(time * 17) * tension,
+    });
+  }
+
   stage.addEventListener('pointermove', event => {
+    if (pet?.id === event.pointerId) {
+      readPointer(event);
+      pet.offsetX = MathUtils.clamp(pointer.x - pet.startX, -1, 1);
+      pet.offsetY = MathUtils.clamp(pointer.y - pet.startY, -1, 1);
+      lastInput = clock();
+      return;
+    }
     if (hasDesktopPointer) return;
     readPointer(event);
     followPointer(pointer.x, pointer.y);
@@ -474,6 +607,19 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   stage.addEventListener('pointerdown', event => {
     if (event.button !== 0 && event.button !== 2) return;
     readPointer(event);
+    if (event.button === 0 && !pet && overHead()) {
+      const time = clock();
+      pet = {
+        id: event.pointerId, started: time, startX: pointer.x, startY: pointer.y, offsetX: 0, offsetY: 0,
+        nextHeart: time + .32, nextMeow: time + .48,
+      };
+      meow.unlock();
+      stage.setPointerCapture(event.pointerId);
+      stage.dataset.petting = 'true';
+      lastInput = time;
+      tenseUntil = -Infinity;
+      return;
+    }
     if (!hasDesktopPointer) cat.setPointer(pointer.x, pointer.y);
     const time = clock();
     if (event.button === 2) {
@@ -486,6 +632,9 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     pressMouse(hit?.mouseButton ?? 'left', 'window:0');
   }, events);
   stage.addEventListener('contextmenu', event => event.preventDefault(), events);
+  stage.addEventListener('lostpointercapture', event => {
+    if (pet?.id === event.pointerId) stopPetting();
+  }, events);
   stage.addEventListener('pointerleave', () => {
     if (hasDesktopPointer) return;
     cat.setPointer(0, 0);
@@ -512,13 +661,15 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       }
     }
 
-    if (pressedSide || (time - lastMouseMove < .22 && time - lastKeyboard > .14)) {
+    if (pressedSide || mouseInUse(time)) {
+      reserveMousePaw(time);
       paws.followMouse(mouseSurface(pressedSide), time, Boolean(pressedSide));
     }
-    if (time - lastInput > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
+    if (!pet && time - lastInput > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
+    animateReaction(time, seconds);
     cat.update(seconds);
     paws.update(time, seconds);
-    const resting = heldKeys.size || mousePresses.size ? 0 : MathUtils.smoothstep(time - lastInput, 1.8, 3);
+    const resting = pet || heldKeys.size || mousePresses.size ? 0 : MathUtils.smoothstep(time - lastInput, 1.8, 3);
     cat.model.scale.y = 1 + resting * .0032 * Math.sin(time * 2.4);
     for (const key of keys.values()) {
       const age = time - key.started;
@@ -529,6 +680,13 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     }
 
     camera.updateMatrixWorld();
+    angerMark.style.opacity = tension;
+    if (tension > .02) {
+      head.localToWorld(projected.set(.196, .238, .130)).project(camera);
+      angerMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 14, viewWidth - 14)}px`;
+      angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 14, viewHeight - 14)}px`;
+      angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + tension * .36})`;
+    }
     while (floaters.length && time - floaters[0].time > .70) floaters.shift().chip.remove();
     for (const floater of floaters) {
       const age = time - floater.time;
@@ -538,6 +696,25 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       floater.chip.style.left = `${(projected.x * .5 + .5) * viewWidth}px`;
       floater.chip.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
       floater.chip.style.opacity = 1 - MathUtils.smoothstep(age, .18, .70);
+    }
+    for (let index = petEffects.length - 1; index >= 0; index--) {
+      const item = petEffects[index];
+      const progress = (time - item.time) / item.lifetime;
+      if (progress >= 1) {
+        item.effect.remove();
+        petEffects.splice(index, 1);
+        continue;
+      }
+      if (item.isHeart) {
+        head.localToWorld(projected.set(.172 + .077 * progress, .224 + .115 * progress, .137));
+      } else {
+        head.localToWorld(projected.set(.036 + .20 * progress, .047 + .05 * progress, .217));
+      }
+      projected.project(camera);
+      item.effect.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 17, viewWidth - 17)}px`;
+      item.effect.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 16, viewHeight - 16)}px`;
+      item.effect.style.opacity = (1 - MathUtils.smoothstep(progress, .66, 1)) * MathUtils.smoothstep(progress, 0, .12);
+      item.effect.style.transform = `translate(-50%, -50%) scale(${.70 + Math.min(progress * 2.5, .48)})`;
     }
     renderer.render(scene, camera);
   }

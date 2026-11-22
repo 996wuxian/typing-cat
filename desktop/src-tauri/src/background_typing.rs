@@ -87,6 +87,7 @@ fn physical_key(scan: u16, flags: u16) -> Option<&'static str> {
     if flags & RI_KEY_E0 as u16 != 0 {
         return Some(match scan {
             0x38 => "AltRight",
+            0x48 => "ArrowUp",
             0x4b => "ArrowLeft",
             0x4d => "ArrowRight",
             0x50 => "ArrowDown",
