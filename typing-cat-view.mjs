@@ -362,9 +362,23 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   angerMark.className = 'anger-mark';
   angerMark.textContent = '💢';
   floatingLayer.append(angerMark);
+  const silenceMark = document.createElement('div');
+  silenceMark.className = 'typing-silence';
+  silenceMark.textContent = '…';
+  const tears = [-.070, .094].map(x => {
+    const stream = document.createElement('div');
+    stream.className = 'typing-tear';
+    return { stream, x };
+  });
+  floatingLayer.append(silenceMark, ...tears.map(tear => tear.stream));
   const recentKeys = [];
   let tenseUntil = -Infinity;
   let tension = 0;
+  let streak = { kind: null, count: 0, last: -Infinity };
+  let typingMood = null;
+  let moodStarted = -Infinity;
+  let moodUntil = -Infinity;
+  let moodBlend = 0;
   let pet = null;
   let petBlend = 0;
   let lastInput = -Infinity;
@@ -412,8 +426,20 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     trimKeyRow();
   }
 
+  function recordStreak(code, time) {
+    const kind = code === 'Period' ? 'speechless' : code === 'Backspace' ? 'crying' : null;
+    const count = kind && kind === streak.kind && time - streak.last <= .95 ? streak.count + 1 : 1;
+    streak = { kind, count, last: time };
+    if (!kind || count < 3) return;
+    if (typingMood !== kind || time >= moodUntil) moodStarted = time;
+    typingMood = kind;
+    moodUntil = time + 1.65;
+    tenseUntil = -Infinity;
+  }
+
   function pressKey(code, time, source = null) {
-    const key = keys.get(code);
+    const keyCode = code === 'Delete' ? 'Backspace' : code;
+    const key = keys.get(keyCode);
     if (!key) return false;
     if (heldKeys.has(code)) return true;
     key.started = time;
@@ -432,16 +458,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       side = 'left';
     }
     if (source) {
-      heldKeys.set(code, { code, point, side, source });
+      heldKeys.set(code, { code, keyCode, point, side, source });
       activeHeldKey[side] = code;
     }
     if (source || !activeHeldKey[side]) paws.tap(point, time, side, Boolean(source));
     cat.setPointer(point.x * 1.6, -.56);
-    showKey(key.label, time, code);
+    showKey(key.label, time, keyCode);
+    recordStreak(keyCode, time);
     if (source) {
       recentKeys.push(time);
       while (recentKeys.length && time - recentKeys[0] > .72) recentKeys.shift();
-      if (recentKeys.length >= 6) tenseUntil = time + .95;
+      if (recentKeys.length >= 6 && time >= moodUntil) tenseUntil = time + .95;
     }
     lastInput = time;
     return true;
@@ -451,8 +478,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     const held = heldKeys.get(code);
     if (!held) return;
     heldKeys.delete(code);
-    const key = keys.get(code);
-    key.releaseAt = Math.max(time, key.started + .145);
+    if (![...heldKeys.values()].some(other => other.keyCode === held.keyCode)) {
+      const key = keys.get(held.keyCode);
+      key.releaseAt = Math.max(time, key.started + .145);
+    }
     if (activeHeldKey[held.side] !== code) return;
     const next = [...heldKeys.values()].findLast(other => other.side === held.side);
     activeHeldKey[held.side] = next?.code ?? null;
@@ -568,7 +597,9 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
 
   function animateReaction(time, seconds) {
     const petting = Boolean(pet);
-    tension = MathUtils.damp(tension, !petting && time < tenseUntil ? 1 : 0, 9, seconds);
+    const moodActive = !petting && time < moodUntil;
+    moodBlend = MathUtils.damp(moodBlend, moodActive ? 1 : 0, moodActive ? 12 : 7, seconds);
+    tension = MathUtils.damp(tension, !petting && !moodActive && time < tenseUntil ? 1 : 0, 9, seconds);
     petBlend = MathUtils.damp(petBlend, petting ? 1 : 0, 7, seconds);
     if (petting) {
       const elapsed = time - pet.started;
@@ -594,6 +625,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
         yaw: (.15 * swipe + (phase === 0 ? .15 * sway : 0)) * petBlend,
         pitch: (nod - pet.offsetY * .10) * petBlend,
         roll: tilt * petBlend,
+      });
+      return;
+    }
+    if (moodBlend > .01) {
+      const crying = typingMood === 'crying';
+      const sobbing = Math.sin((time - moodStarted) * 12);
+      cat.setReaction({
+        squint: (crying ? .79 : .54) * moodBlend,
+        yaw: (crying ? .03 * sobbing : -.08) * moodBlend,
+        pitch: (crying ? .16 + .06 * sobbing : -.055) * moodBlend,
+        roll: (crying ? -.06 + .025 * sobbing : -.107) * moodBlend,
       });
       return;
     }
@@ -634,6 +676,8 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       stage.dataset.petting = 'true';
       lastInput = time;
       tenseUntil = -Infinity;
+      moodUntil = -Infinity;
+      streak = { kind: null, count: 0, last: -Infinity };
       return;
     }
     if (!hasDesktopPointer) cat.setPointer(pointer.x, pointer.y);
@@ -696,13 +740,35 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     }
 
     camera.updateMatrixWorld();
-    angerMark.style.opacity = tension;
+    angerMark.style.opacity = tension * (1 - moodBlend);
     if (tension > .02) {
       head.localToWorld(projected.set(.196, .238, .130)).project(camera);
       angerMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 14, viewWidth - 14)}px`;
       angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 14, viewHeight - 14)}px`;
       angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + tension * .36})`;
     }
+    const speechless = typingMood === 'speechless' ? moodBlend : 0;
+    silenceMark.style.opacity = speechless;
+    if (speechless > .02) {
+      head.localToWorld(projected.set(.192, .229, .133)).project(camera);
+      silenceMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 18, viewWidth - 18)}px`;
+      silenceMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 12, viewHeight - 12)}px`;
+    }
+    const crying = typingMood === 'crying' ? moodBlend : 0;
+    tears.forEach(({ stream, x }, index) => {
+      stream.style.opacity = crying;
+      if (crying <= .02) {
+        return;
+      }
+      head.localToWorld(projected.set(x, .092, .153)).project(camera);
+      const flow = (time - moodStarted) * 3 + index * .39;
+      const length = (.55 + .45 * crying) * (1 + .07 * Math.sin(flow * 2 * Math.PI));
+      const lean = (index === 0 ? 7 : -7) + 2 * Math.sin(flow * 2 * Math.PI);
+      stream.style.left = `${(projected.x * .5 + .5) * viewWidth}px`;
+      stream.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
+      stream.style.transform = `translateX(-50%) rotate(${lean}deg) scaleY(${length})`;
+      stream.style.setProperty('--tear-flow', `${Math.floor((flow % 1) * 28)}px`);
+    });
     while (floaters.length && time - floaters[0].time >= .88) floaters.shift().chip.remove();
     if (floaters.length) {
       cat.model.localToWorld(projected.set(.015, .265, .252)).project(camera);

@@ -91,6 +91,7 @@ fn physical_key(scan: u16, flags: u16) -> Option<&'static str> {
             0x4b => "ArrowLeft",
             0x4d => "ArrowRight",
             0x50 => "ArrowDown",
+            0x53 => "Delete",
             _ => return None,
         });
     }

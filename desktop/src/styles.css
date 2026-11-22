@@ -148,6 +148,53 @@ canvas, #floating { position: absolute; inset: 0; width: 100%; height: 100%; }
   font: 30px/1 "Segoe UI Emoji", sans-serif;
   filter: drop-shadow(0 2px 3px #42142553);
 }
+.typing-silence, .typing-tear {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+.typing-silence {
+  transform: translate(-50%, -50%);
+  min-width: 30px;
+  padding: 1px 7px 4px;
+  border: 1px solid #aeb5c4;
+  border-radius: 10px 10px 10px 3px;
+  background: #f6f7fa;
+  box-shadow: 0 2px 6px #23334c38;
+  color: #48566c;
+  text-align: center;
+  font: 800 18px/1 system-ui, sans-serif;
+}
+.typing-tear {
+  width: clamp(11px, 4vw, 24px);
+  height: clamp(31px, 11.8vh, 84px);
+  transform: translateX(-50%);
+  transform-origin: top center;
+  border: 1px solid #c5f2ff;
+  border-radius: 38% 38% 58% 58% / 12% 12% 17% 17%;
+  background: linear-gradient(90deg, #229ce5 0%, #5bd4ff 35%, #38bdf6 72%, #1996df 100%);
+  box-shadow: 0 1px 4px #124d7c65;
+}
+.typing-tear::before {
+  content: '';
+  position: absolute;
+  inset: 3px 45% 5px 22%;
+  border-radius: 4px;
+  background: repeating-linear-gradient(to bottom, #d5faffad 0 9px, #e7fcff00 13px 28px);
+  background-position-y: var(--tear-flow, 0px);
+}
+.typing-tear::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: -24%;
+  width: 148%;
+  height: 6px;
+  border-radius: 50%;
+  background: #4bcaff;
+  box-shadow: 0 1px 2px #184b6b40;
+}
 .pet-effect {
   position: absolute;
   top: 0;

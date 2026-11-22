@@ -10,6 +10,7 @@
 - 按住键时，猫爪持续按住键帽，松手后再抬起。
 - 按住猫咪头部拖动可以抚摸。长按会触发脸红、冒爱心和喵叫。快速敲键时，猫咪会眯眼，头旁会浮出生气符号。
 - 一只爪握住鼠标时，另一只爪负责键盘。
+- 连按三次句号会让猫咪无语，连按三次退格或删除会让猫咪掉眼泪。
 - Windows 桌面版在失焦后也会跟随各显示器上的光标，并响应左右键的点击和长按。
 - 在菜单里可以将窗口大小设为 50% 到 120%。默认 65%，设置会在下次启动时恢复。
 - 按住 `Alt` 并用鼠标左键拖动可以移动窗口。
@@ -25,7 +26,7 @@ npm run release
 ```
 
 `npm run release` 把免安装程序放到 `releases/v<版本>/typing-cat.exe`。例如当前版本是
-`releases/v1.0.7/typing-cat.exe`。`src-tauri/target` 是构建目录。
+`releases/v1.0.9/typing-cat.exe`。`src-tauri/target` 是构建目录。
 `npm run release:installer` 还会把 Windows 安装包放进同一个版本目录。
 
 应用图标原图在 `src-tauri/icons/icon-source.png`。更新原图后，用带 Pillow 的 Python 运行
