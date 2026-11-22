@@ -104,11 +104,9 @@ function addEyeTracking(mesh) {
             float eyelid = (1.0 - smoothstep(lidLine - 2.0, lidLine + 2.0, eyePoint.y))
               * max(catExpression.x, closeAmount) * eyeMask;
             catLidCoverage = max(eyelid, shut * smoothstep(.015, .53, outerEye));
-            vec3 lidColor = mix(vec3(0.19, 0.15, 0.13), vec3(0.30, 0.25, 0.22), closeAmount);
-            float eyelidArc = 210.0 - 7.0 * (1.0 - inward * inward);
-            float crease = (1.0 - smoothstep(1.0, 2.25, abs(eyePoint.y - eyelidArc)))
-              * (1.0 - smoothstep(.84, .99, abs(inward))) * shut;
-            lidColor = mix(lidColor, vec3(.075, .058, .05), crease);
+            vec3 relaxedLid = mix(vec3(.32, .267, .235), vec3(.27, .224, .196),
+              smoothstep(169.0, 236.0, eyePoint.y));
+            vec3 lidColor = mix(vec3(.19, .15, .13), relaxedLid, closeAmount);
             diffuseColor.rgb = mix(diffuseColor.rgb, lidColor, catLidCoverage);
           }
         }

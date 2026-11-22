@@ -32,6 +32,7 @@ const keyboardX = .014;
 const mouseHomeX = .320;
 const mouseHomeZ = .264;
 const mouseButtonTravel = .005;
+const keyFloatHeights = [-14, -7, 0, 7, 14];
 
 function makeLabel(text, width, color, code) {
   const canvas = document.createElement('canvas');
@@ -347,6 +348,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     .concat([...mouse.buttons.values()].map(button => button.mesh));
   const activeColor = new Color('#a4b1cc');
   const floaters = [];
+  const keyRow = document.createElement('div');
+  keyRow.className = 'key-row';
+  floatingLayer.append(keyRow);
+  let lastKeyRowWidth = 0;
   const projected = new Vector3();
   const head = cat.model.getObjectByName('Head');
   const headCenter = new Vector3();
@@ -385,14 +390,26 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     paws.tap(next.point, time, 'left', true);
   }
 
-  function showKey(label, time, point, code) {
+  function trimKeyRow() {
+    while (floaters.length > 1 && keyRow.clientWidth > 0 && keyRow.scrollWidth > keyRow.clientWidth) {
+      floaters.shift().chip.remove();
+    }
+  }
+
+  function showKey(label, time, code) {
     const chip = document.createElement('span');
     chip.className = 'key-chip';
+    if (code === 'Space') chip.classList.add('key-chip-space');
     if (keyIcons[code]) chip.append(keyIconElement(code));
     else chip.textContent = label;
-    floatingLayer.append(chip);
-    floaters.push({ chip, time, point: point.clone() });
+    const previousHeight = floaters.at(-1)?.heightIndex ?? -1;
+    let heightIndex = Math.floor(Math.random() * (keyFloatHeights.length - (previousHeight < 0 ? 0 : 1)));
+    if (previousHeight >= 0 && heightIndex >= previousHeight) heightIndex++;
+    const tilt = (Math.random() - .5) * 7;
+    keyRow.append(chip);
+    floaters.push({ chip, time, heightIndex, tilt });
     if (floaters.length > 16) floaters.shift().chip.remove();
+    trimKeyRow();
   }
 
   function pressKey(code, time, source = null) {
@@ -420,7 +437,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     }
     if (source || !activeHeldKey[side]) paws.tap(point, time, side, Boolean(source));
     cat.setPointer(point.x * 1.6, -.56);
-    showKey(key.label, time, point, code);
+    showKey(key.label, time, code);
     if (source) {
       recentKeys.push(time);
       while (recentKeys.length && time - recentKeys[0] > .72) recentKeys.shift();
@@ -467,8 +484,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     button.started = lastInput = lastMouseMove = time;
     button.releaseAt = Infinity;
     reserveMousePaw(time);
-    const point = mouseSurface(side);
-    showKey(side === 'left' ? '左键' : '右键', time, point);
+    showKey(side === 'left' ? '左键' : '右键', time);
   }
 
   function releaseMouse(token) {
@@ -687,15 +703,20 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 14, viewHeight - 14)}px`;
       angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + tension * .36})`;
     }
-    while (floaters.length && time - floaters[0].time > .70) floaters.shift().chip.remove();
+    while (floaters.length && time - floaters[0].time >= .88) floaters.shift().chip.remove();
+    if (floaters.length) {
+      cat.model.localToWorld(projected.set(.015, .265, .252)).project(camera);
+      keyRow.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
+      if (lastKeyRowWidth !== viewWidth) {
+        lastKeyRowWidth = viewWidth;
+        trimKeyRow();
+      }
+    }
     for (const floater of floaters) {
       const age = time - floater.time;
-      projected.copy(floater.point);
-      projected.y += .12 + .22 * age;
-      projected.project(camera);
-      floater.chip.style.left = `${(projected.x * .5 + .5) * viewWidth}px`;
-      floater.chip.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
-      floater.chip.style.opacity = 1 - MathUtils.smoothstep(age, .18, .70);
+      const fade = MathUtils.smoothstep(age, .32, .88);
+      floater.chip.style.opacity = 1 - fade;
+      floater.chip.style.transform = `translateY(${keyFloatHeights[floater.heightIndex] - 5 * fade}px) rotate(${floater.tilt}deg)`;
     }
     for (let index = petEffects.length - 1; index >= 0; index--) {
       const item = petEffects[index];

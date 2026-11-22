@@ -2,6 +2,7 @@
 export const keyIcons = Object.freeze({
   Backspace: ['M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5l11 0', 'M12 10l4 4m0 -4l-4 4'],
   Enter: ['M18 6v6a3 3 0 0 1 -3 3h-10l4 -4m0 8l-4 -4'],
+  Space: ['M4 10v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1 -1v-3'],
   ArrowUp: ['M12 5v14', 'M18 11l-6 -6', 'M6 11l6 -6'],
   ArrowDown: ['M12 5v14', 'M18 13l-6 6', 'M6 13l6 6'],
   ArrowLeft: ['M5 12h14', 'M5 12l6 6', 'M5 12l6 -6'],

@@ -25,7 +25,7 @@ npm run release
 ```
 
 `npm run release` 把免安装程序放到 `releases/v<版本>/typing-cat.exe`。例如当前版本是
-`releases/v1.0.5/typing-cat.exe`。`src-tauri/target` 是构建目录。
+`releases/v1.0.7/typing-cat.exe`。`src-tauri/target` 是构建目录。
 `npm run release:installer` 还会把 Windows 安装包放进同一个版本目录。
 
 应用图标原图在 `src-tauri/icons/icon-source.png`。更新原图后，用带 Pillow 的 Python 运行
