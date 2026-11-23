@@ -6,6 +6,7 @@
 
 - 在打字猫窗口内按键，或点击屏幕键帽。
 - 窗口平时只显示猫咪、键盘和鼠标。按 `Esc` 显示或隐藏浮动菜单。
+- 菜单里的「方案」可在 3D 灰猫套装与 2D 夜猫套装之间切换。下次打开会恢复上次选择。
 - 打开菜单里的「后台打字」开关后，其他窗口里的物理按键会实时触发对应的键帽和浮字。应用只处理模型上有的键位，不转换或保存输入文本。
 - 按住键时，猫爪持续按住键帽，松手后再抬起。
 - 按住猫咪头部拖动可以抚摸。长按会触发脸红、冒爱心和喵叫。快速敲键时，猫咪会眯眼，头旁会浮出生气符号。
@@ -26,7 +27,7 @@ npm run release
 ```
 
 `npm run release` 把免安装程序放到 `releases/v<版本>/typing-cat.exe`。例如当前版本是
-`releases/v1.0.9/typing-cat.exe`。`src-tauri/target` 是构建目录。
+`releases/v1.0.13/typing-cat.exe`。`src-tauri/target` 是构建目录。
 `npm run release:installer` 还会把 Windows 安装包放进同一个版本目录。
 
 应用图标原图在 `src-tauri/icons/icon-source.png`。更新原图后，用带 Pillow 的 Python 运行

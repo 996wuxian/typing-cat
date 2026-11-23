@@ -6,6 +6,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { loadSeatedCat } from './seated-cat.mjs';
+import { createMidnightCat } from './midnight-cat.mjs';
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createMeowPlayer } from './cat-meow.mjs';
@@ -29,10 +30,44 @@ const capHeight = .018;
 const capTravel = .008;
 const capY = .064;
 const keyboardX = .014;
+const keyboardZ = .353;
 const mouseHomeX = .320;
 const mouseHomeZ = .264;
 const mouseButtonTravel = .005;
 const keyFloatHeights = [-14, -7, 0, 7, 14];
+const keyFloatLifetime = 1.02;
+const keyOverflowFade = .22;
+const keyChipGap = 6;
+const keyRowInset = 12;
+const defaultFloatingKeyAnchor = [.015, .265, .252];
+
+export const typingCatSchemes = {
+  classic: { label: '灰猫 · 深灰键盘' },
+  midnight: {
+    label: '夜猫 · 奶白键盘',
+    createCat: createMidnightCat,
+    keyboard: {
+      plateColor: '#363440', insertColor: '#24232b',
+      plateHeight: .043, bezelRadius: .018, keyRadius: .0055, widthScale: .86, depthScale: .84, yaw: -.052,
+      colors: Array.from({ length: rows.length }, (_, row) => [row % 2 ? '#faf5e9' : '#eae7df', '#34323b']),
+      accents: new Map([['Tab', '#eeb751'], ['ArrowRight', '#eeb751']]),
+    },
+    mouse: {
+      x: -.285, scale: [.88, 1.08, .88], shell: '#f2eee6', wheel: '#817252', tread: '#a99a75',
+      profile: [
+        [-.059, .001, .010, .011], [-.053, .019, .011, .024], [-.038, .030, .015, .037],
+        [-.021, .034, .017, .044], [.002, .035, .018, .046], [.023, .034, .016, .043],
+        [.042, .030, .014, .036], [.056, .019, .011, .025], [.063, .001, .008, .010],
+      ],
+    },
+    activeColor: '#e6b95c',
+    cameraX: -.018,
+    cameraY: .237,
+    cameraZoom: 1.40,
+    cameraElevation: 1.22,
+    floatingKeyAnchor: [-.008, .196, .222],
+  },
+};
 
 function makeLabel(text, width, color, code) {
   const canvas = document.createElement('canvas');
@@ -60,38 +95,42 @@ function makeLabel(text, width, color, code) {
   return label;
 }
 
-function createKeyboard() {
+function createKeyboard({ plateColor = '#24272d', insertColor = '#17191e', plateHeight = .054,
+  bezelRadius = .014, keyRadius = .0038, widthScale = 1, depthScale = 1, yaw = 0, colors, accents } = {}) {
   const board = new Group();
+  board.position.set(keyboardX, 0, keyboardZ);
+  board.scale.set(widthScale, 1, depthScale);
+  board.rotation.y = yaw;
   const keys = new Map();
   const shapes = new Map();
-  const keyColors = [
+  const keyColors = colors ?? [
     ['#eef0f2', '#252b33'],
     ['#d8dce0', '#252b33'],
     ['#aeb4bc', '#252b33'],
     ['#646c78', '#f1f3f5'],
     ['#373d47', '#f1f3f5'],
   ];
-  const plate = new Mesh(new RoundedBoxGeometry(.53, .054, .163, 2, .014),
-    new MeshStandardMaterial({ color: '#24272d', roughness: .52 }));
-  plate.position.set(keyboardX, .027, .353);
+  const plate = new Mesh(new RoundedBoxGeometry(.53, plateHeight, .163, 2, bezelRadius),
+    new MeshStandardMaterial({ color: plateColor, roughness: .52 }));
+  plate.position.y = .054 - plateHeight * .5;
   const insert = new Mesh(new RoundedBoxGeometry(.514, .009, .148, 2, .004),
-    new MeshStandardMaterial({ color: '#17191e', roughness: .63 }));
-  insert.position.set(keyboardX, .054, .353);
+    new MeshStandardMaterial({ color: insertColor, roughness: .63 }));
+  insert.position.y = .054;
   board.add(plate, insert);
 
   const unit = .036;
   rows.forEach((row, rowIndex) => {
     const total = row.reduce((sum, [, , size = 1]) => sum + size, 0);
     // The layout and legends both face the cat.
-    let column = keyboardX + total * unit / 2;
-    const z = .301 + (rows.length - 1 - rowIndex) * .026;
+    let column = total * unit / 2;
+    const z = ((rows.length - 1) / 2 - rowIndex) * .026;
     for (const [code, label, size = 1] of row) {
       const width = unit * size - .0024;
       if (!shapes.has(size)) {
-        shapes.set(size, new RoundedBoxGeometry(width, capHeight, .024, 2, .0038));
+        shapes.set(size, new RoundedBoxGeometry(width, capHeight, .024, 2, keyRadius));
       }
       const [keyColor, labelColor] = keyColors[rowIndex];
-      const tint = new Color(keyColor);
+      const tint = new Color(accents?.get(code) ?? keyColor);
       const cap = new Mesh(shapes.get(size), new MeshStandardMaterial({ color: tint, roughness: .59 }));
       cap.position.set(column - size * unit / 2, capY, z);
       if (label !== '') cap.add(makeLabel(label, width, labelColor, code));
@@ -118,13 +157,13 @@ const mouseProfile = [
   [ .063, .001, .008, .010],
 ];
 
-function mouseSection(z) {
-  const index = mouseProfile.findIndex(([position], i) => i > 0 && z <= position);
-  const i = index === -1 ? mouseProfile.length - 1 : index;
-  const a = mouseProfile[i - 1];
-  const b = mouseProfile[i];
-  const previous = mouseProfile[Math.max(0, i - 2)];
-  const next = mouseProfile[Math.min(mouseProfile.length - 1, i + 1)];
+function mouseSection(z, profile) {
+  const index = profile.findIndex(([position], i) => i > 0 && z <= position);
+  const i = index === -1 ? profile.length - 1 : index;
+  const a = profile[i - 1];
+  const b = profile[i];
+  const previous = profile[Math.max(0, i - 2)];
+  const next = profile[Math.min(profile.length - 1, i + 1)];
   const length = b[0] - a[0];
   const t = MathUtils.clamp((z - a[0]) / length, 0, 1);
   const t2 = t * t;
@@ -137,14 +176,14 @@ function mouseSection(z) {
   });
 }
 
-function mouseSurfaceGeometry(start, end, columns, sample) {
+function mouseSurfaceGeometry(start, end, columns, sectionAt, sample) {
   const rows = 48;
   const vertices = [];
   const indices = [];
   const stride = columns + 1;
   for (let row = 0; row <= rows; row++) {
     const z = MathUtils.lerp(start, end, row / rows);
-    const section = mouseSection(z);
+    const section = sectionAt(z);
     for (let column = 0; column <= columns; column++) {
       const [x, y] = sample(column / columns, z, section);
       vertices.push(x, y, z);
@@ -165,17 +204,19 @@ function mouseCrown(x, [halfWidth, sideY, centerY]) {
   return sideY + (centerY - sideY) * Math.sqrt(1 - across ** 2.25);
 }
 
-function createMouse() {
+function createMouse({ x = mouseHomeX, scale = [1, 1.42, 1], shell = '#e2e4e8',
+  wheel: wheelColor = '#343740', tread: treadColor = '#585d68', profile = mouseProfile } = {}) {
   const body = new Group();
-  const rear = mouseProfile[0][0];
-  const nose = mouseProfile.at(-1)[0];
+  const rear = profile[0][0];
+  const nose = profile.at(-1)[0];
+  const sectionAt = z => mouseSection(z, profile);
   const seam = -.003;
-  const ivory = new MeshStandardMaterial({ color: '#e2e4e8', roughness: .48 });
+  const ivory = new MeshStandardMaterial({ color: shell, roughness: .48 });
   const trim = new MeshStandardMaterial({ color: '#525862', roughness: .69 });
   const recess = new MeshStandardMaterial({ color: '#5c636d', roughness: .74 });
 
   function cover(from, to, material, inset = 0, widthScale = 1) {
-    const geometry = mouseSurfaceGeometry(from, to, 20, (u, z, section) => {
+    const geometry = mouseSurfaceGeometry(from, to, 20, sectionAt, (u, z, section) => {
       const x = (u * 2 - 1) * section[0] * widthScale;
       return [x, mouseCrown(x, section) - inset];
     });
@@ -185,11 +226,11 @@ function createMouse() {
   cover(seam, nose, recess, .0065, .95);
 
   for (const side of [-1, 1]) {
-    const skirt = mouseSurfaceGeometry(rear, nose, 3, (u, z, [width, height]) => {
+    const skirt = mouseSurfaceGeometry(rear, nose, 3, sectionAt, (u, z, [width, height]) => {
       const fraction = side > 0 ? 1 - u : u;
       return [side * width * MathUtils.lerp(.96, 1, fraction), MathUtils.lerp(.005, height, fraction)];
     });
-    const edge = mouseSurfaceGeometry(rear, nose, 2, (u, z, [width]) => {
+    const edge = mouseSurfaceGeometry(rear, nose, 2, sectionAt, (u, z, [width]) => {
       const fraction = side > 0 ? 1 - u : u;
       return [side * width * MathUtils.lerp(.92, .968, fraction), MathUtils.lerp(.001, .006, fraction)];
     });
@@ -198,8 +239,8 @@ function createMouse() {
 
   const buttons = new Map();
   for (const [side, sign] of [['left', -1], ['right', 1]]) {
-    const tint = new Color('#e2e4e8');
-    const panel = mouseSurfaceGeometry(seam + .0014, nose, 14, (u, z, section) => {
+    const tint = new Color(shell);
+    const panel = mouseSurfaceGeometry(seam + .0014, nose, 14, sectionAt, (u, z, section) => {
       const width = section[0];
       const wheelSlot = MathUtils.smoothstep(z, .005, .013) *
         (1 - MathUtils.smoothstep(z, .030, .039));
@@ -214,8 +255,8 @@ function createMouse() {
   }
 
   const wheel = new Group();
-  const rubber = new MeshStandardMaterial({ color: '#343740', roughness: .9 });
-  const ribs = new MeshStandardMaterial({ color: '#585d68', roughness: .92 });
+  const rubber = new MeshStandardMaterial({ color: wheelColor, roughness: .9 });
+  const ribs = new MeshStandardMaterial({ color: treadColor, roughness: .92 });
   const roller = new Mesh(new CylinderGeometry(.009, .009, .010, 24), rubber);
   roller.rotation.z = Math.PI / 2;
   wheel.add(roller);
@@ -227,11 +268,11 @@ function createMouse() {
     rib.rotation.x = angle;
     wheel.add(rib);
   }
-  wheel.position.set(0, .048, .021);
+  wheel.position.set(0, sectionAt(.021)[2] - .001, .021);
   body.add(wheel);
-  body.scale.y = 1.42;
-  body.position.set(mouseHomeX, 0, mouseHomeZ);
-  return { body, buttons };
+  body.scale.fromArray(scale);
+  body.position.set(x, 0, mouseHomeZ);
+  return { body, buttons, sectionAt };
 }
 
 function makeShadow(width, depth, x, z, opacity) {
@@ -265,7 +306,8 @@ async function loadModel(stage, assetUrl) {
   }
 }
 
-export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {}) {
+export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme = 'classic' } = {}) {
+  const preset = typingCatSchemes[scheme];
   const status = stage.querySelector('#status');
   const floatingLayer = stage.querySelector('#floating');
   const events = { signal };
@@ -276,6 +318,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   renderer.toneMapping = ACESFilmicToneMapping;
   const scene = new Scene();
   const camera = new PerspectiveCamera(30, 1, .03, 20);
+  camera.zoom = preset.cameraZoom ?? 1;
   const keyLight = new DirectionalLight('#ffeddb', 3);
   keyLight.position.set(1.3, 3, 3.8);
   const rimLight = new DirectionalLight('#e4eaff', 1.65);
@@ -295,32 +338,39 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     });
   };
   const resizeObserver = new ResizeObserver(sizeToStage);
+  let cat;
   const cleanup = () => {
     resizeObserver.disconnect();
     renderer.setAnimationLoop(null);
     disposeScene();
     renderer.dispose();
+    cat?.dispose?.();
     floatingLayer.replaceChildren();
   };
   signal?.addEventListener('abort', cleanup, { once: true });
-  let cat;
   try {
-    cat = await loadModel(stage, assetUrl);
+    cat = preset.createCat ? preset.createCat(floatingLayer) : await loadModel(stage, assetUrl);
   } catch (error) {
     if (!signal?.aborted) cleanup();
     throw error;
   }
   if (signal?.aborted) {
+    cat.dispose?.();
     scene.add(cat.model);
     disposeScene();
     return;
   }
-  const paws = createTypingPaws(cat.model);
-  const { board, keys } = createKeyboard();
-  const mouse = createMouse();
-  const mouseShadow = makeShadow(.16, .17, mouseHomeX, mouseHomeZ, .28);
-  scene.add(makeShadow(.67, .67, 0, -.05, .42), makeShadow(.68, .25, keyboardX, .36, .30),
-    mouseShadow, cat.model, board, mouse.body);
+  const { board, keys } = createKeyboard(preset.keyboard);
+  const mouse = createMouse(preset.mouse);
+  const mouseX = mouse.body.position.x;
+  const mousePaw = mouseX < 0 ? 'left' : 'right';
+  const keyboardPaw = mousePaw === 'right' ? 'left' : 'right';
+  const paws = createTypingPaws(cat.model, mousePaw, cat.pawContact);
+  const keyboardShadow = makeShadow(.68 * board.scale.x, .25 * board.scale.z, keyboardX, keyboardZ + .007, .30);
+  keyboardShadow.rotation.z = board.rotation.y;
+  const mouseShadow = makeShadow(.16, .17, mouseX, mouseHomeZ, .28);
+  scene.add(makeShadow(.67, .67, 0, -.05, .42),
+    keyboardShadow, mouseShadow, cat.model, board, mouse.body);
 
   let viewWidth = 0;
   let viewHeight = 0;
@@ -331,8 +381,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     viewHeight = height;
     camera.aspect = width / Math.max(1, height);
     const distance = Math.max(1.12, .83 / camera.aspect);
-    camera.position.set(.045, .423 + 1.12 * distance, .13 + 2.20 * distance);
-    camera.lookAt(.045, .423, .13);
+    const centerX = preset.cameraX ?? .045;
+    const centerY = preset.cameraY ?? .423;
+    camera.position.set(centerX, centerY + (preset.cameraElevation ?? 1.12) * distance, .13 + 2.20 * distance);
+    camera.lookAt(centerX, centerY, .13);
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
   }
@@ -346,14 +398,16 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   const raycast = new Raycaster();
   const hitTargets = [...keys.values()].map(key => key.cap)
     .concat([...mouse.buttons.values()].map(button => button.mesh));
-  const activeColor = new Color('#a4b1cc');
+  const activeColor = new Color(preset.activeColor ?? '#a4b1cc');
   const floaters = [];
   const keyRow = document.createElement('div');
   keyRow.className = 'key-row';
   floatingLayer.append(keyRow);
-  let lastKeyRowWidth = 0;
   const projected = new Vector3();
   const head = cat.model.getObjectByName('Head');
+  const projectHead = (x, y, z, target = projected) => cat.projectHead
+    ? cat.projectHead(x, y, target)
+    : head.localToWorld(target.set(x, y, z)).project(camera);
   const headCenter = new Vector3();
   const headEdge = new Vector3();
   const meow = createMeowPlayer(signal);
@@ -365,10 +419,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   const silenceMark = document.createElement('div');
   silenceMark.className = 'typing-silence';
   silenceMark.textContent = '…';
-  const tears = [-.070, .094].map(x => {
+  const tears = (cat.eyeAnchors ?? [[-.070, .092, .153], [.094, .092, .153]]).map(anchor => {
     const stream = document.createElement('div');
     stream.className = 'typing-tear';
-    return { stream, x };
+    return { stream, anchor };
   });
   floatingLayer.append(silenceMark, ...tears.map(tear => tear.stream));
   const recentKeys = [];
@@ -393,21 +447,15 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
   }
 
   function reserveMousePaw(time) {
-    if (!activeHeldKey.right) return;
+    if (!activeHeldKey[mousePaw]) return;
     for (const held of heldKeys.values()) {
-      if (held.side === 'right') held.side = 'left';
+      if (held.side === mousePaw) held.side = keyboardPaw;
     }
     const next = [...heldKeys.values()].at(-1);
-    activeHeldKey.right = null;
-    activeHeldKey.left = next.code;
-    paws.release('right', time);
-    paws.tap(next.point, time, 'left', true);
-  }
-
-  function trimKeyRow() {
-    while (floaters.length > 1 && keyRow.clientWidth > 0 && keyRow.scrollWidth > keyRow.clientWidth) {
-      floaters.shift().chip.remove();
-    }
+    activeHeldKey[mousePaw] = null;
+    activeHeldKey[keyboardPaw] = next.code;
+    paws.release(mousePaw, time);
+    paws.tap(next.point, time, keyboardPaw, true);
   }
 
   function showKey(label, time, code) {
@@ -421,9 +469,52 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     if (previousHeight >= 0 && heightIndex >= previousHeight) heightIndex++;
     const tilt = (Math.random() - .5) * 7;
     keyRow.append(chip);
-    floaters.push({ chip, time, heightIndex, tilt });
-    if (floaters.length > 16) floaters.shift().chip.remove();
-    trimKeyRow();
+    floaters.push({ chip, time, heightIndex, tilt, width: chip.offsetWidth, evictedAt: Infinity });
+  }
+
+  function updateKeyFloaters(time, seconds) {
+    for (let index = floaters.length - 1; index >= 0; index--) {
+      const floater = floaters[index];
+      if (time - floater.time >= keyFloatLifetime || time - floater.evictedAt >= keyOverflowFade) {
+        floater.chip.remove();
+        floaters.splice(index, 1);
+      }
+    }
+    if (!floaters.length) return;
+
+    cat.model.localToWorld(projected.fromArray(preset.floatingKeyAnchor ?? defaultFloatingKeyAnchor)).project(camera);
+    keyRow.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
+
+    const row = floaters.filter(floater => floater.evictedAt === Infinity);
+    const availableWidth = viewWidth - 2 * keyRowInset;
+    let rowWidth = row.reduce((total, floater) => total + floater.width, Math.max(0, row.length - 1) * keyChipGap);
+    while (row.length > 1 && (row.length > 16 || rowWidth > availableWidth)) {
+      const floater = row.shift();
+      floater.evictedAt = time;
+      rowWidth -= floater.width + keyChipGap;
+    }
+
+    let left = -rowWidth / 2;
+    for (const floater of floaters) {
+      if (floater.evictedAt === Infinity) {
+        const x = left + floater.width / 2;
+        floater.x = MathUtils.damp(floater.x ?? x, x, 16, seconds);
+        left += floater.width + keyChipGap;
+      }
+      if (floater.x === undefined) continue;
+
+      const age = time - floater.time;
+      const enter = MathUtils.smoothstep(age, 0, .18);
+      const fade = MathUtils.smoothstep(age, .46, keyFloatLifetime);
+      const overflow = MathUtils.smoothstep(time - floater.evictedAt, 0, keyOverflowFade);
+      const opacity = enter * (1 - fade) * (1 - overflow);
+      const rise = 19 * MathUtils.clamp(age / keyFloatLifetime, 0, 1);
+      const x = floater.x + 7 * (1 - enter) - 4 * fade;
+      const y = keyFloatHeights[floater.heightIndex] + 10 * (1 - enter) - rise - 8 * overflow;
+      const scale = .81 + .19 * enter - .13 * Math.max(fade, overflow);
+      floater.chip.style.opacity = opacity;
+      floater.chip.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${floater.tilt}deg) scale(${scale})`;
+    }
   }
 
   function recordStreak(code, time) {
@@ -446,17 +537,18 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     key.releaseAt = source ? Infinity : time + .182;
     const { x, z } = key.cap.position;
     const point = new Vector3(x, capY + capHeight * .5 - capTravel, z);
-    let side = x < .018 ? 'left' : 'right';
+    let side = x < .018 - keyboardX ? 'left' : 'right';
     const usingMouse = mouseInUse(time);
     if (code === 'Space') {
-      side = usingMouse ? 'left' : nextSpaceSide;
+      side = usingMouse ? keyboardPaw : nextSpaceSide;
       point.x = x + (side === 'left' ? -.066 : .066);
       if (!usingMouse) nextSpaceSide = side === 'left' ? 'right' : 'left';
     }
     if (usingMouse) {
       reserveMousePaw(time);
-      side = 'left';
+      side = keyboardPaw;
     }
+    board.localToWorld(point);
     if (source) {
       heldKeys.set(code, { code, keyCode, point, side, source });
       activeHeldKey[side] = code;
@@ -500,8 +592,9 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     const x = side === 'left' ? -.012 : side === 'right' ? .012 : 0;
     const z = side ? .014 : .004;
     const buttonY = mouse.buttons.get(side)?.mesh.position.y ?? 0;
-    const height = (mouseCrown(x, mouseSection(z)) + buttonY) * mouse.body.scale.y;
-    return new Vector3(mouse.body.position.x + x, height + .001, mouse.body.position.z + z);
+    const point = mouse.body.localToWorld(new Vector3(x, mouseCrown(x, mouse.sectionAt(z)) + buttonY, z));
+    point.y += .001;
+    return point;
   }
 
   function pressMouse(side, token) {
@@ -570,10 +663,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
 
   function overHead() {
     camera.updateMatrixWorld();
-    head.localToWorld(headCenter.set(.015, .13, .133)).project(camera);
-    head.localToWorld(headEdge.set(.174, .13, .133)).project(camera);
+    projectHead(.015, .13, .133, headCenter);
+    projectHead(.174, .13, .133, headEdge);
     const radiusX = Math.abs(headEdge.x - headCenter.x);
-    head.localToWorld(headEdge.set(.015, .255, .133)).project(camera);
+    projectHead(.015, .255, .133, headEdge);
     const radiusY = Math.abs(headEdge.y - headCenter.y);
     return Math.hypot((pointer.x - headCenter.x) / radiusX, (pointer.y - headCenter.y) / radiusY) <= 1;
   }
@@ -632,6 +725,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       const crying = typingMood === 'crying';
       const sobbing = Math.sin((time - moodStarted) * 12);
       cat.setReaction({
+        crying,
         squint: (crying ? .79 : .54) * moodBlend,
         yaw: (crying ? .03 * sobbing : -.08) * moodBlend,
         pitch: (crying ? .16 + .06 * sobbing : -.055) * moodBlend,
@@ -703,7 +797,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
 
   function renderFrame(time, seconds) {
     const settle = 1 - Math.exp(-17 * seconds);
-    mouse.body.position.x = MathUtils.lerp(mouse.body.position.x, mouseHomeX + mouseOffset.x, settle);
+    mouse.body.position.x = MathUtils.lerp(mouse.body.position.x, mouseX + mouseOffset.x, settle);
     mouse.body.position.z = MathUtils.lerp(mouse.body.position.z, mouseHomeZ + mouseOffset.y, settle);
     mouseShadow.position.x = mouse.body.position.x;
     mouseShadow.position.z = mouse.body.position.z;
@@ -740,9 +834,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     }
 
     camera.updateMatrixWorld();
+    cat.draw?.(camera, viewWidth, viewHeight, renderer.getPixelRatio());
     angerMark.style.opacity = tension * (1 - moodBlend);
     if (tension > .02) {
-      head.localToWorld(projected.set(.196, .238, .130)).project(camera);
+      projectHead(.196, .238, .130);
       angerMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 14, viewWidth - 14)}px`;
       angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 14, viewHeight - 14)}px`;
       angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + tension * .36})`;
@@ -750,17 +845,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
     const speechless = typingMood === 'speechless' ? moodBlend : 0;
     silenceMark.style.opacity = speechless;
     if (speechless > .02) {
-      head.localToWorld(projected.set(.192, .229, .133)).project(camera);
+      projectHead(.192, .229, .133);
       silenceMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 18, viewWidth - 18)}px`;
       silenceMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 12, viewHeight - 12)}px`;
     }
-    const crying = typingMood === 'crying' ? moodBlend : 0;
-    tears.forEach(({ stream, x }, index) => {
+    const crying = !pet && typingMood === 'crying' ? moodBlend : 0;
+    tears.forEach(({ stream, anchor }, index) => {
       stream.style.opacity = crying;
       if (crying <= .02) {
         return;
       }
-      head.localToWorld(projected.set(x, .092, .153)).project(camera);
+      projectHead(...anchor);
       const flow = (time - moodStarted) * 3 + index * .39;
       const length = (.55 + .45 * crying) * (1 + .07 * Math.sin(flow * 2 * Math.PI));
       const lean = (index === 0 ? 7 : -7) + 2 * Math.sin(flow * 2 * Math.PI);
@@ -769,21 +864,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
       stream.style.transform = `translateX(-50%) rotate(${lean}deg) scaleY(${length})`;
       stream.style.setProperty('--tear-flow', `${Math.floor((flow % 1) * 28)}px`);
     });
-    while (floaters.length && time - floaters[0].time >= .88) floaters.shift().chip.remove();
-    if (floaters.length) {
-      cat.model.localToWorld(projected.set(.015, .265, .252)).project(camera);
-      keyRow.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
-      if (lastKeyRowWidth !== viewWidth) {
-        lastKeyRowWidth = viewWidth;
-        trimKeyRow();
-      }
-    }
-    for (const floater of floaters) {
-      const age = time - floater.time;
-      const fade = MathUtils.smoothstep(age, .32, .88);
-      floater.chip.style.opacity = 1 - fade;
-      floater.chip.style.transform = `translateY(${keyFloatHeights[floater.heightIndex] - 5 * fade}px) rotate(${floater.tilt}deg)`;
-    }
+    updateKeyFloaters(time, seconds);
     for (let index = petEffects.length - 1; index >= 0; index--) {
       const item = petEffects[index];
       const progress = (time - item.time) / item.lifetime;
@@ -793,11 +874,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus } = {})
         continue;
       }
       if (item.isHeart) {
-        head.localToWorld(projected.set(.172 + .077 * progress, .224 + .115 * progress, .137));
+        projectHead(.172 + .077 * progress, .224 + .115 * progress, .137);
       } else {
-        head.localToWorld(projected.set(.036 + .20 * progress, .047 + .05 * progress, .217));
+        projectHead(.036 + .20 * progress, .047 + .05 * progress, .217);
       }
-      projected.project(camera);
       item.effect.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 17, viewWidth - 17)}px`;
       item.effect.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 16, viewHeight - 16)}px`;
       item.effect.style.opacity = (1 - MathUtils.smoothstep(progress, .66, 1)) * MathUtils.smoothstep(progress, 0, .12);

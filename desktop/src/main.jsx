@@ -4,14 +4,16 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { IconMinus, IconPin, IconPinnedOff, IconX } from '@tabler/icons-react';
+import { IconChevronDown, IconMinus, IconPin, IconPinnedOff, IconX } from '@tabler/icons-react';
 import modelUrl from '../../typing-cat.glb?url';
-import { mountTypingCat } from '../../typing-cat-view.mjs';
+import { mountTypingCat, typingCatSchemes } from '../../typing-cat-view.mjs';
 import './styles.css';
 
 const nativeWindow = isTauri() ? getCurrentWindow() : null;
 const backgroundPreference = 'typing-cat.background-key-animations';
 const sizePreference = 'typing-cat.window-scale';
+const schemePreference = 'typing-cat.scene-scheme';
+const loadingStatus = '正在准备猫咪和键盘…';
 const scaleOptions = { min: 50, max: 120, step: 5, initial: 65 };
 
 function savedScale() {
@@ -24,7 +26,13 @@ function resizeWindow(percent) {
   return nativeWindow.setSize(new LogicalSize(Math.round(540 * percent / 100), Math.round(620 * percent / 100)));
 }
 
-function WindowMenu({ background, backgroundBusy, error, scale, onScale, onToggleBackground, onError }) {
+function savedScheme() {
+  const saved = localStorage.getItem(schemePreference);
+  return Object.hasOwn(typingCatSchemes, saved) ? saved : 'classic';
+}
+
+function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale, onScheme,
+  onToggleBackground, onError }) {
   const [pinned, setPinned] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [draftScale, setDraftScale] = useState(scale);
@@ -89,6 +97,15 @@ function WindowMenu({ background, backgroundBusy, error, scale, onScale, onToggl
         <span>后台打字</span>
         <span className="switch-track" aria-hidden="true" />
       </button>
+      <label className="scheme-setting">
+        <span>方案</span>
+        <span className="scheme-select">
+          <select value={scheme} onChange={event => onScheme(event.currentTarget.value)}>
+            {Object.entries(typingCatSchemes).map(([id, { label }]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <IconChevronDown aria-hidden="true" size={14} stroke={1.8} />
+        </span>
+      </label>
       <label className="size-setting">
         <span>大小 <output>{draftScale}%</output></span>
         <input type="range" min={scaleOptions.min} max={scaleOptions.max} step={scaleOptions.step}
@@ -105,12 +122,13 @@ function App() {
   const target = useRef(null);
   const sceneControls = useRef(null);
   const lastDesktopPointer = useRef(null);
-  const [status, setStatus] = useState('正在准备猫咪和键盘…');
+  const [status, setStatus] = useState(loadingStatus);
   const [windowError, setWindowError] = useState('');
   const [controlsOpen, setControlsOpen] = useState(false);
   const [background, setBackground] = useState(false);
   const [backgroundBusy, setBackgroundBusy] = useState(false);
   const [scale, setScale] = useState(savedScale);
+  const [scheme, setScheme] = useState(savedScheme);
   const reportWindowError = useRef(error => {
     console.error(error);
     setWindowError('窗口操作失败');
@@ -119,7 +137,7 @@ function App() {
   useEffect(() => {
     const abort = new AbortController();
     const stage = target.current;
-    mountTypingCat(stage, { assetUrl: modelUrl, signal: abort.signal, onStatus: setStatus }).then(controls => {
+    mountTypingCat(stage, { assetUrl: modelUrl, signal: abort.signal, scheme, onStatus: setStatus }).then(controls => {
       if (!abort.signal.aborted) {
         sceneControls.current = controls;
         if (lastDesktopPointer.current) controls.trackDesktopPointer(...lastDesktopPointer.current);
@@ -134,7 +152,14 @@ function App() {
       sceneControls.current = null;
       abort.abort();
     };
-  }, []);
+  }, [scheme]);
+
+  function updateScheme(next) {
+    if (next === scheme || !Object.hasOwn(typingCatSchemes, next)) return;
+    setStatus(loadingStatus);
+    setScheme(next);
+    localStorage.setItem(schemePreference, next);
+  }
 
   async function updateBackground(enabled) {
     setBackgroundBusy(true);
@@ -223,9 +248,9 @@ function App() {
   return (
     <div className="desktop">
       {controlsOpen && <WindowMenu background={background} backgroundBusy={backgroundBusy}
-        error={windowError} scale={scale} onScale={updateScale}
+        error={windowError} scale={scale} scheme={scheme} onScale={updateScale} onScheme={updateScheme}
         onToggleBackground={() => updateBackground(!background)} onError={reportWindowError} />}
-      <main className="stage" data-state="loading" ref={target} onPointerDownCapture={dragWindow}>
+      <main key={scheme} className="stage" data-state="loading" ref={target} onPointerDownCapture={dragWindow}>
         <canvas id="scene" aria-label="互动猫咪、键盘和鼠标" />
         <div id="floating" aria-hidden="true" />
         <p id="status" role="status">{status}</p>

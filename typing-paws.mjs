@@ -5,9 +5,6 @@ const holdTime = 0.202;
 const minimumHold = 0.15;
 const returnDuration = 0.168;
 const neutralRotation = new Quaternion();
-const mouseGrip = new Quaternion().setFromEuler(new Euler(.23, .22, -.12, 'YXZ'));
-const mousePress = new Quaternion().setFromEuler(new Euler(.31, .22, -.12, 'YXZ'));
-const crossKeyboard = new Quaternion().setFromEuler(new Euler(.25, .73, .18, 'YXZ'));
 const pawPad = new Vector3(0, -.068, .087);
 const outerToes = new Vector3(.031, -.064, .091);
 
@@ -60,38 +57,44 @@ function wristAt(surface, rotation = neutralRotation, contact = pawPad) {
   return surface.clone().sub(contact.clone().applyQuaternion(rotation));
 }
 
-export function createTypingPaws(model) {
+export function createTypingPaws(model, mouseSide = 'right', contact = {}) {
   model.updateMatrixWorld(true);
-  const left = makePaw(model, 'R');
-  const right = makePaw(model, 'L');
+  const arms = { left: makePaw(model, 'R'), right: makePaw(model, 'L') };
+  const direction = mouseSide === 'right' ? 1 : -1;
+  const mouseGrip = new Quaternion().setFromEuler(new Euler(.23, .22 * direction, -.12 * direction, 'YXZ'));
+  const mousePress = new Quaternion().setFromEuler(new Euler(.31, .22 * direction, -.12 * direction, 'YXZ'));
+  const crossKeyboard = new Quaternion().setFromEuler(new Euler(.25, .73 * direction, .18 * direction, 'YXZ'));
+  const pad = contact.pad ?? pawPad;
+  const crossContact = (contact.outerToes ?? outerToes).clone();
+  crossContact.x *= direction;
   let mouse = null;
 
   return {
     tap(surface, time, side = surface.x < 0.018 ? 'left' : 'right', held = false) {
-      const arm = side === 'left' ? left : right;
-      const crossing = side === 'left' && surface.x > .065;
+      const arm = arms[side];
+      const crossing = side !== mouseSide && surface.x * direction > .065;
       const rotation = crossing ? crossKeyboard : neutralRotation;
       arm.motion = {
         time, from: arm.wrist.clone(), rotation,
-        contact: wristAt(surface, rotation, crossing ? outerToes : pawPad),
+        contact: wristAt(surface, rotation, crossing ? crossContact : pad),
         releaseAt: held ? Infinity : time + holdTime,
       };
     },
 
     release(side, time) {
-      const arm = side === 'left' ? left : right;
+      const arm = arms[side];
       const motion = arm.motion;
       if (motion?.releaseAt === Infinity) motion.releaseAt = Math.max(time, motion.time + minimumHold);
     },
 
     followMouse(surface, time, pressed) {
       const rotation = pressed ? mousePress : mouseGrip;
-      mouse = { until: time + 0.48, wrist: wristAt(surface, rotation), rotation, pressed };
+      mouse = { until: time + 0.48, wrist: wristAt(surface, rotation, pad), rotation, pressed };
     },
 
     update(time, seconds) {
-      for (const arm of [left, right]) {
-        const grip = arm === right && mouse && time < mouse.until ? mouse : null;
+      for (const [side, arm] of Object.entries(arms)) {
+        const grip = side === mouseSide && mouse && time < mouse.until ? mouse : null;
         const blend = 1 - Math.exp(-21 * seconds);
         const motion = arm.motion;
         const age = motion ? time - motion.time : Infinity;
