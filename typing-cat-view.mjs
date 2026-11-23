@@ -39,6 +39,10 @@ const keyFloatLifetime = 1.02;
 const keyOverflowFade = .22;
 const keyChipGap = 6;
 const keyRowInset = 12;
+const napDelay = 10;
+const napLetterLifetime = 1.6;
+const napLetterSpacing = .43;
+const napLetterCycle = 2.4;
 const defaultFloatingKeyAnchor = [.015, .265, .252];
 
 export const typingCatSchemes = {
@@ -47,7 +51,7 @@ export const typingCatSchemes = {
     label: '夜猫 · 奶白键盘',
     createCat: createMidnightCat,
     keyboard: {
-      plateColor: '#363440', insertColor: '#24232b',
+      z: .403, plateColor: '#363440', insertColor: '#24232b',
       plateHeight: .043, bezelRadius: .018, keyRadius: .0055, widthScale: .86, depthScale: .84, yaw: -.052,
       colors: Array.from({ length: rows.length }, (_, row) => [row % 2 ? '#faf5e9' : '#eae7df', '#34323b']),
       accents: new Map([['Tab', '#eeb751'], ['ArrowRight', '#eeb751']]),
@@ -96,9 +100,10 @@ function makeLabel(text, width, color, code) {
 }
 
 function createKeyboard({ plateColor = '#24272d', insertColor = '#17191e', plateHeight = .054,
-  bezelRadius = .014, keyRadius = .0038, widthScale = 1, depthScale = 1, yaw = 0, colors, accents } = {}) {
+  bezelRadius = .014, keyRadius = .0038, widthScale = 1, depthScale = 1, yaw = 0, z = keyboardZ,
+  colors, accents } = {}) {
   const board = new Group();
-  board.position.set(keyboardX, 0, keyboardZ);
+  board.position.set(keyboardX, 0, z);
   board.scale.set(widthScale, 1, depthScale);
   board.rotation.y = yaw;
   const keys = new Map();
@@ -366,7 +371,8 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   const mousePaw = mouseX < 0 ? 'left' : 'right';
   const keyboardPaw = mousePaw === 'right' ? 'left' : 'right';
   const paws = createTypingPaws(cat.model, mousePaw, cat.pawContact);
-  const keyboardShadow = makeShadow(.68 * board.scale.x, .25 * board.scale.z, keyboardX, keyboardZ + .007, .30);
+  const keyboardShadow = makeShadow(.68 * board.scale.x, .25 * board.scale.z,
+    board.position.x, board.position.z + .007, .30);
   keyboardShadow.rotation.z = board.rotation.y;
   const mouseShadow = makeShadow(.16, .17, mouseX, mouseHomeZ, .28);
   scene.add(makeShadow(.67, .67, 0, -.05, .42),
@@ -412,6 +418,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   const headEdge = new Vector3();
   const meow = createMeowPlayer(signal);
   const petEffects = [];
+  const napLabel = document.createElement('div');
+  napLabel.className = 'nap-label';
+  napLabel.hidden = true;
+  const napLetters = ['z', 'z', 'Z'].map(text => {
+    const letter = document.createElement('span');
+    letter.className = 'nap-letter';
+    letter.textContent = text;
+    return letter;
+  });
+  napLabel.append(...napLetters);
+  floatingLayer.append(napLabel);
   const angerMark = document.createElement('div');
   angerMark.className = 'anger-mark';
   angerMark.textContent = '💢';
@@ -419,12 +436,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   const silenceMark = document.createElement('div');
   silenceMark.className = 'typing-silence';
   silenceMark.textContent = '…';
-  const tears = (cat.eyeAnchors ?? [[-.070, .092, .153], [.094, .092, .153]]).map(anchor => {
-    const stream = document.createElement('div');
-    stream.className = 'typing-tear';
-    return { stream, anchor };
-  });
-  floatingLayer.append(silenceMark, ...tears.map(tear => tear.stream));
+  floatingLayer.append(silenceMark);
   const recentKeys = [];
   let tenseUntil = -Infinity;
   let tension = 0;
@@ -435,7 +447,9 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   let moodBlend = 0;
   let pet = null;
   let petBlend = 0;
-  let lastInput = -Infinity;
+  let napBlend = 0;
+  let napElapsed = 0;
+  let lastInput = clock();
   let lastMouseMove = -Infinity;
   let nextSpaceSide = 'left';
   const heldKeys = new Map();
@@ -570,6 +584,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     const held = heldKeys.get(code);
     if (!held) return;
     heldKeys.delete(code);
+    lastInput = time;
     if (![...heldKeys.values()].some(other => other.keyCode === held.keyCode)) {
       const key = keys.get(held.keyCode);
       key.releaseAt = Math.max(time, key.started + .145);
@@ -688,7 +703,35 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     petEffects.push({ effect, time, isHeart, lifetime: isHeart ? 1.15 : 1.05 });
   }
 
-  function animateReaction(time, seconds) {
+  function updateNapLetters(seconds) {
+    const opacity = MathUtils.smoothstep(napBlend, .10, .92);
+    if (!opacity) {
+      if (!napLabel.hidden) napLabel.hidden = true;
+      napElapsed = 0;
+      return;
+    }
+
+    napElapsed += seconds;
+    napLabel.hidden = false;
+    napLabel.style.opacity = opacity;
+    projectHead(.157, .196, .130);
+    const anchorX = (.5 + projected.x * .5) * viewWidth;
+    const anchorY = (.5 - projected.y * .5) * viewHeight;
+    napLabel.style.left = `${MathUtils.clamp(anchorX, 8, viewWidth - 44)}px`;
+    napLabel.style.top = `${MathUtils.clamp(anchorY, 54, viewHeight - 12)}px`;
+
+    napLetters.forEach((letter, index) => {
+      const age = (napElapsed - index * napLetterSpacing) % napLetterCycle;
+      const progress = MathUtils.clamp(age / napLetterLifetime, 0, 1);
+      const drift = 5 + 25 * progress + 3 * Math.sin(Math.PI * progress);
+      const rise = 42 * progress;
+      const scale = .62 + .43 * progress + .09 * index;
+      letter.style.opacity = MathUtils.smoothstep(age, 0, .28) * (1 - MathUtils.smoothstep(age, .86, napLetterLifetime));
+      letter.style.transform = `translate(-50%, -50%) translate(${drift}px, ${-rise}px) rotate(${-10 + 12 * progress}deg) scale(${scale})`;
+    });
+  }
+
+  function animateReaction(time, seconds, breath) {
     const petting = Boolean(pet);
     const moodActive = !petting && time < moodUntil;
     moodBlend = MathUtils.damp(moodBlend, moodActive ? 1 : 0, moodActive ? 12 : 7, seconds);
@@ -725,7 +768,8 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       const crying = typingMood === 'crying';
       const sobbing = Math.sin((time - moodStarted) * 12);
       cat.setReaction({
-        crying,
+        crying: crying ? moodBlend : 0,
+        sob: crying ? (.29 + .14 * sobbing) * moodBlend : 0,
         squint: (crying ? .79 : .54) * moodBlend,
         yaw: (crying ? .03 * sobbing : -.08) * moodBlend,
         pitch: (crying ? .16 + .06 * sobbing : -.055) * moodBlend,
@@ -735,12 +779,13 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     }
     cat.setReaction({
       tension,
-      squint: petBlend,
+      doze: napBlend,
+      squint: Math.max(petBlend, napBlend),
       blush: .92 * petBlend,
       mouth: meow.mouthAmount(),
       yaw: .055 * Math.sin(time * 22) * tension,
-      pitch: .075 * tension,
-      roll: .037 * Math.sin(time * 17) * tension,
+      pitch: .075 * tension + (.21 + .028 * breath) * napBlend,
+      roll: .037 * Math.sin(time * 17) * tension - .15 * napBlend,
     });
   }
 
@@ -819,12 +864,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       reserveMousePaw(time);
       paws.followMouse(mouseSurface(pressedSide), time, Boolean(pressedSide));
     }
-    if (!pet && time - lastInput > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
-    animateReaction(time, seconds);
+    const idleTime = time - lastInput;
+    const busy = Boolean(pet || heldKeys.size || mousePresses.size);
+    const napping = !busy && idleTime >= napDelay;
+    napBlend = MathUtils.damp(napBlend, napping ? 1 : 0, napping ? 3 : 16, seconds);
+    const breath = Math.sin(time * 2.4);
+    if (!pet && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
+    animateReaction(time, seconds, breath);
     cat.update(seconds);
     paws.update(time, seconds);
-    const resting = pet || heldKeys.size || mousePresses.size ? 0 : MathUtils.smoothstep(time - lastInput, 1.8, 3);
-    cat.model.scale.y = 1 + resting * .0032 * Math.sin(time * 2.4);
+    const resting = busy ? 0 : MathUtils.smoothstep(idleTime, 1.8, 3);
+    cat.model.scale.y = 1 + (.0032 * resting + .004 * napBlend) * breath;
     for (const key of keys.values()) {
       const age = time - key.started;
       const releaseAge = time - key.releaseAt;
@@ -835,6 +885,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
 
     camera.updateMatrixWorld();
     cat.draw?.(camera, viewWidth, viewHeight, renderer.getPixelRatio());
+    updateNapLetters(seconds);
     angerMark.style.opacity = tension * (1 - moodBlend);
     if (tension > .02) {
       projectHead(.196, .238, .130);
@@ -849,21 +900,6 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       silenceMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 18, viewWidth - 18)}px`;
       silenceMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 12, viewHeight - 12)}px`;
     }
-    const crying = !pet && typingMood === 'crying' ? moodBlend : 0;
-    tears.forEach(({ stream, anchor }, index) => {
-      stream.style.opacity = crying;
-      if (crying <= .02) {
-        return;
-      }
-      projectHead(...anchor);
-      const flow = (time - moodStarted) * 3 + index * .39;
-      const length = (.55 + .45 * crying) * (1 + .07 * Math.sin(flow * 2 * Math.PI));
-      const lean = (index === 0 ? 7 : -7) + 2 * Math.sin(flow * 2 * Math.PI);
-      stream.style.left = `${(projected.x * .5 + .5) * viewWidth}px`;
-      stream.style.top = `${(.5 - projected.y * .5) * viewHeight}px`;
-      stream.style.transform = `translateX(-50%) rotate(${lean}deg) scaleY(${length})`;
-      stream.style.setProperty('--tear-flow', `${Math.floor((flow % 1) * 28)}px`);
-    });
     updateKeyFloaters(time, seconds);
     for (let index = petEffects.length - 1; index >= 0; index--) {
       const item = petEffects[index];

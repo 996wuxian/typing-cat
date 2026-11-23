@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { IconChevronDown, IconMinus, IconPin, IconPinnedOff, IconX } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconMinus, IconPin, IconPinnedOff, IconX } from '@tabler/icons-react';
 import modelUrl from '../../typing-cat.glb?url';
 import { mountTypingCat, typingCatSchemes } from '../../typing-cat-view.mjs';
 import './styles.css';
@@ -13,6 +13,7 @@ const nativeWindow = isTauri() ? getCurrentWindow() : null;
 const backgroundPreference = 'typing-cat.background-key-animations';
 const sizePreference = 'typing-cat.window-scale';
 const schemePreference = 'typing-cat.scene-scheme';
+const schemeOptions = Object.entries(typingCatSchemes);
 const loadingStatus = '正在准备猫咪和键盘…';
 const scaleOptions = { min: 50, max: 120, step: 5, initial: 65 };
 
@@ -29,6 +30,91 @@ function resizeWindow(percent) {
 function savedScheme() {
   const saved = localStorage.getItem(schemePreference);
   return Object.hasOwn(typingCatSchemes, saved) ? saved : 'classic';
+}
+
+function SchemePicker({ scheme, onScheme }) {
+  const id = useId();
+  const root = useRef(null);
+  const trigger = useRef(null);
+  const selectedIndex = schemeOptions.findIndex(([value]) => value === scheme);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+
+  useEffect(() => {
+    if (!open) return;
+    function close() {
+      setOpen(false);
+    }
+    function handleOutsidePointer(event) {
+      if (!root.current?.contains(event.target)) close();
+    }
+    document.addEventListener('pointerdown', handleOutsidePointer);
+    window.addEventListener('blur', close);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer);
+      window.removeEventListener('blur', close);
+    };
+  }, [open]);
+
+  function openList(index = selectedIndex) {
+    setActiveIndex(index);
+    setOpen(true);
+  }
+
+  function selectOption(index) {
+    setOpen(false);
+    onScheme(schemeOptions[index][0]);
+    trigger.current?.focus();
+  }
+
+  function handleKeyDown(event) {
+    const { key } = event;
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      event.preventDefault();
+      if (open) {
+        const direction = key === 'ArrowDown' ? 1 : -1;
+        setActiveIndex(index => Math.max(0, Math.min(index + direction, schemeOptions.length - 1)));
+      } else {
+        openList();
+      }
+    } else if (key === 'Home' || key === 'End') {
+      event.preventDefault();
+      openList(key === 'Home' ? 0 : schemeOptions.length - 1);
+    } else if (open && (key === 'Enter' || key === ' ')) {
+      event.preventDefault();
+      selectOption(activeIndex);
+    } else if (open && key === 'Escape') {
+      event.preventDefault();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="scheme-setting" ref={root}>
+      <label id={`${id}-label`} htmlFor={`${id}-trigger`}>方案</label>
+      <div className="scheme-picker">
+        <button type="button" id={`${id}-trigger`} className="scheme-trigger" role="combobox" ref={trigger}
+          aria-labelledby={`${id}-label ${id}-value`} aria-haspopup="listbox" aria-expanded={open}
+          aria-controls={`${id}-list`} aria-activedescendant={open ? `${id}-option-${activeIndex}` : undefined}
+          onClick={() => open ? setOpen(false) : openList()} onKeyDown={handleKeyDown}
+          onBlur={() => setOpen(false)}>
+          <span id={`${id}-value`} className="scheme-value">{typingCatSchemes[scheme].label}</span>
+          <IconChevronDown className="scheme-chevron" aria-hidden="true" size={14} stroke={1.9} />
+        </button>
+        <ul id={`${id}-list`} className="scheme-options" role="listbox" aria-labelledby={`${id}-label`}
+          data-open={open} aria-hidden={!open} onMouseDown={event => event.preventDefault()}>
+          {schemeOptions.map(([value, { label }], index) => (
+            <li key={value} id={`${id}-option-${index}`} role="option" className="scheme-option"
+              aria-selected={value === scheme} data-active={index === activeIndex}
+              onMouseMove={() => setActiveIndex(index)} onClick={() => selectOption(index)}>
+              <span className="scheme-value">{label}</span>
+              {value === scheme && <IconCheck className="scheme-check" aria-hidden="true" size={15} stroke={2.2} />}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
 }
 
 function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale, onScheme,
@@ -97,15 +183,7 @@ function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale,
         <span>后台打字</span>
         <span className="switch-track" aria-hidden="true" />
       </button>
-      <label className="scheme-setting">
-        <span>方案</span>
-        <span className="scheme-select">
-          <select value={scheme} onChange={event => onScheme(event.currentTarget.value)}>
-            {Object.entries(typingCatSchemes).map(([id, { label }]) => <option key={id} value={id}>{label}</option>)}
-          </select>
-          <IconChevronDown aria-hidden="true" size={14} stroke={1.8} />
-        </span>
-      </label>
+      <SchemePicker scheme={scheme} onScheme={onScheme} />
       <label className="size-setting">
         <span>大小 <output>{draftScale}%</output></span>
         <input type="range" min={scaleOptions.min} max={scaleOptions.max} step={scaleOptions.step}
@@ -229,7 +307,7 @@ function App() {
   useEffect(() => {
     if (!nativeWindow) return;
     function toggleControls(event) {
-      if (event.key !== 'Escape' || event.repeat) return;
+      if (event.defaultPrevented || event.key !== 'Escape' || event.repeat) return;
       setControlsOpen(open => !open);
       setWindowError('');
     }
