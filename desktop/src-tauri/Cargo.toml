@@ -1,6 +1,6 @@
 [package]
 name = "typing-cat"
-version = "1.0.13"
+version = "1.1.0"
 description = "Interactive typing cat"
 edition = "2021"
 
