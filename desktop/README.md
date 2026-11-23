@@ -6,6 +6,7 @@
 
 - 在打字猫窗口内按键，或点击屏幕键帽。
 - 窗口平时只显示猫咪、键盘和鼠标。按 `Esc` 显示或隐藏浮动菜单。
+- 打字猫只运行一个实例。关闭窗口会最小化到任务栏，再次启动会恢复已有窗口。右键系统托盘图标，选择「退出打字猫」可结束应用。
 - 菜单里的「方案」可在 3D 灰猫套装与 2D 夜猫套装之间切换。下次打开会恢复上次选择。
 - 打开菜单里的「后台打字」开关后，其他窗口里的物理按键会实时触发对应的键帽和浮字。应用只处理模型上有的键位，不转换或保存输入文本。
 - 按住键时，猫爪持续按住键帽，松手后再抬起。
@@ -29,7 +30,7 @@ npm run release
 ```
 
 `npm run release` 把免安装程序放到 `releases/v<版本>/typing-cat.exe`。例如当前版本是
-`releases/v1.1.0/typing-cat.exe`。`src-tauri/target` 是构建目录。
+`releases/v1.1.1/typing-cat.exe`。`src-tauri/target` 是构建目录。
 `npm run release:installer` 还会把 Windows 安装包放进同一个版本目录。
 
 把 `desktop/package.json` 的版本变更推送到 `main` 后，GitHub Actions 的 Release 工作流会构建并发布 Windows 免安装版和 NSIS 安装包。

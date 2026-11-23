@@ -173,7 +173,7 @@ function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale,
           </button>
           <button type="button" aria-label="最小化" title="最小化"
             onClick={() => nativeWindow.minimize().catch(onError)}><IconMinus size={17} stroke={1.7} /></button>
-          <button type="button" className="close" aria-label="关闭应用" title="关闭应用"
+          <button type="button" className="close" aria-label="关闭窗口并最小化" title="关闭窗口并最小化到任务栏"
             onClick={() => nativeWindow.close().catch(onError)}><IconX size={17} stroke={1.7} /></button>
         </div>
       </header>
