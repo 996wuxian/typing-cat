@@ -10,6 +10,7 @@ import { createMidnightCat } from './midnight-cat.mjs';
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createMeowPlayer } from './cat-meow.mjs';
+import { createCatRewards } from './typing-cat-rewards.mjs';
 
 function letters(value) {
   return Array.from(value, name => [`Key${name}`, name]);
@@ -43,6 +44,7 @@ const napDelay = 10;
 const napLetterLifetime = 1.6;
 const napLetterSpacing = .43;
 const napLetterCycle = 2.4;
+const angerMarkThreshold = 80;
 const defaultFloatingKeyAnchor = [.015, .265, .252];
 
 export const typingCatSchemes = {
@@ -311,7 +313,7 @@ async function loadModel(stage, assetUrl) {
   }
 }
 
-export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme = 'classic' } = {}) {
+export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme = 'classic', rewardsEnabled = true } = {}) {
   const preset = typingCatSchemes[scheme];
   const status = stage.querySelector('#status');
   const floatingLayer = stage.querySelector('#floating');
@@ -344,12 +346,14 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   };
   const resizeObserver = new ResizeObserver(sizeToStage);
   let cat;
+  let rewards;
   const cleanup = () => {
     resizeObserver.disconnect();
     renderer.setAnimationLoop(null);
     disposeScene();
     renderer.dispose();
     cat?.dispose?.();
+    rewards?.dispose();
     floatingLayer.replaceChildren();
   };
   signal?.addEventListener('abort', cleanup, { once: true });
@@ -416,6 +420,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     : head.localToWorld(target.set(x, y, z)).project(camera);
   const headCenter = new Vector3();
   const headEdge = new Vector3();
+  const feedPoint = new Vector2();
   const meow = createMeowPlayer(signal);
   const petEffects = [];
   const napLabel = document.createElement('div');
@@ -447,8 +452,12 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   let moodBlend = 0;
   let pet = null;
   let petBlend = 0;
-  let napBlend = 0;
+  rewards = createCatRewards(stage, { enabled: rewardsEnabled, canFeedAt, onFeed: feedCat });
+  let angerMarkBlend = Number(rewards.anger > angerMarkThreshold);
+  let napBlend = Number(rewards.striking);
+  let strikeBlend = napBlend;
   let napElapsed = 0;
+  let fedAt = -Infinity;
   let lastInput = clock();
   let lastMouseMove = -Infinity;
   let nextSpaceSide = 'left';
@@ -461,7 +470,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   }
 
   function reserveMousePaw(time) {
-    if (!activeHeldKey[mousePaw]) return;
+    if (rewards.striking || !activeHeldKey[mousePaw]) return;
     for (const held of heldKeys.values()) {
       if (held.side === mousePaw) held.side = keyboardPaw;
     }
@@ -547,12 +556,13 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     const key = keys.get(keyCode);
     if (!key) return false;
     if (heldKeys.has(code)) return true;
+    rewards.recordKey(time);
     key.started = time;
     key.releaseAt = source ? Infinity : time + .182;
     const { x, z } = key.cap.position;
     const point = new Vector3(x, capY + capHeight * .5 - capTravel, z);
     let side = x < .018 - keyboardX ? 'left' : 'right';
-    const usingMouse = mouseInUse(time);
+    const usingMouse = !rewards.striking && mouseInUse(time);
     if (code === 'Space') {
       side = usingMouse ? keyboardPaw : nextSpaceSide;
       point.x = x + (side === 'left' ? -.066 : .066);
@@ -567,14 +577,16 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       heldKeys.set(code, { code, keyCode, point, side, source });
       activeHeldKey[side] = code;
     }
-    if (source || !activeHeldKey[side]) paws.tap(point, time, side, Boolean(source));
-    cat.setPointer(point.x * 1.6, -.56);
     showKey(key.label, time, keyCode);
-    recordStreak(keyCode, time);
-    if (source) {
-      recentKeys.push(time);
-      while (recentKeys.length && time - recentKeys[0] > .72) recentKeys.shift();
-      if (recentKeys.length >= 6 && time >= moodUntil) tenseUntil = time + .95;
+    if (!rewards.striking) {
+      if (source || !activeHeldKey[side]) paws.tap(point, time, side, Boolean(source));
+      cat.setPointer(point.x * 1.6, -.56);
+      recordStreak(keyCode, time);
+      if (source) {
+        recentKeys.push(time);
+        while (recentKeys.length && time - recentKeys[0] > .72) recentKeys.shift();
+        if (recentKeys.length >= 6) tenseUntil = time + .55;
+      }
     }
     lastInput = time;
     return true;
@@ -592,7 +604,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     if (activeHeldKey[held.side] !== code) return;
     const next = [...heldKeys.values()].findLast(other => other.side === held.side);
     activeHeldKey[held.side] = next?.code ?? null;
-    if (next) paws.tap(next.point, time, next.side, true);
+    if (next && !rewards.striking) paws.tap(next.point, time, next.side, true);
     else paws.release(held.side, time);
   }
 
@@ -669,21 +681,54 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
   }
 
   function followPointer(x, y) {
-    if (pet) return;
+    if (pet || rewards.dragging) return;
     cat.setPointer(x, y);
     lastInput = lastMouseMove = clock();
     mouseOffset.set(.012 * MathUtils.clamp(x, -1, 1),
       -.023 * MathUtils.clamp(y, -1, 1));
   }
 
-  function overHead() {
+  function overHead(point = pointer) {
     camera.updateMatrixWorld();
     projectHead(.015, .13, .133, headCenter);
     projectHead(.174, .13, .133, headEdge);
     const radiusX = Math.abs(headEdge.x - headCenter.x);
     projectHead(.015, .255, .133, headEdge);
     const radiusY = Math.abs(headEdge.y - headCenter.y);
-    return Math.hypot((pointer.x - headCenter.x) / radiusX, (pointer.y - headCenter.y) / radiusY) <= 1;
+    return Math.hypot((point.x - headCenter.x) / radiusX, (point.y - headCenter.y) / radiusY) <= 1;
+  }
+
+  function canFeedAt(clientX, clientY) {
+    const { left, top, width, height } = stage.getBoundingClientRect();
+    const x = clientX - left;
+    const y = clientY - top;
+    if (!width || !height || x < 0 || y < 0 || x > width || y > height) return false;
+    if (cat.containsScreenPoint) return cat.containsScreenPoint(x, y);
+    feedPoint.set(2 * x / width - 1, 1 - 2 * y / height);
+    if (overHead(feedPoint)) return true;
+
+    cat.model.localToWorld(headCenter.set(0, .35, .17)).project(camera);
+    cat.model.localToWorld(headEdge.set(.205, .35, .17)).project(camera);
+    const radiusX = Math.abs(headEdge.x - headCenter.x);
+    cat.model.localToWorld(headEdge.set(0, .61, .17)).project(camera);
+    const radiusY = Math.abs(headEdge.y - headCenter.y);
+    return Math.hypot((feedPoint.x - headCenter.x) / radiusX, (feedPoint.y - headCenter.y) / radiusY) <= 1;
+  }
+
+  function resumeHeldPaws(time) {
+    for (const code of Object.values(activeHeldKey)) {
+      const held = heldKeys.get(code);
+      if (held) paws.tap(held.point, time, held.side, true);
+    }
+  }
+
+  function feedCat() {
+    fedAt = lastInput = clock();
+    tenseUntil = moodUntil = -Infinity;
+    streak = { kind: null, count: 0, last: -Infinity };
+    recentKeys.length = 0;
+    resumeHeldPaws(fedAt);
+    showPetEffect(fedAt, true);
   }
 
   function stopPetting() {
@@ -733,9 +778,10 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
 
   function animateReaction(time, seconds, breath) {
     const petting = Boolean(pet);
-    const moodActive = !petting && time < moodUntil;
+    const striking = rewards.striking;
+    const moodActive = !petting && !striking && time < moodUntil;
     moodBlend = MathUtils.damp(moodBlend, moodActive ? 1 : 0, moodActive ? 12 : 7, seconds);
-    tension = MathUtils.damp(tension, !petting && !moodActive && time < tenseUntil ? 1 : 0, 9, seconds);
+    tension = MathUtils.damp(tension, !petting && !striking && !moodActive && time < tenseUntil ? 1 : 0, 9, seconds);
     petBlend = MathUtils.damp(petBlend, petting ? 1 : 0, 7, seconds);
     if (petting) {
       const elapsed = time - pet.started;
@@ -764,7 +810,7 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       });
       return;
     }
-    if (moodBlend > .01) {
+    if (moodBlend > .01 && !striking) {
       const crying = typingMood === 'crying';
       const sobbing = Math.sin((time - moodStarted) * 12);
       cat.setReaction({
@@ -777,14 +823,17 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       });
       return;
     }
+    const fedAge = time - fedAt;
+    const feeding = MathUtils.smoothstep(fedAge, 0, .14) * (1 - MathUtils.smoothstep(fedAge, .75, 1.25));
+    const irritation = .34 * MathUtils.smoothstep(rewards.anger, 56, 99) * (1 - napBlend) * (1 - feeding);
     cat.setReaction({
-      tension,
+      tension: striking ? 0 : Math.max(tension, irritation),
       doze: napBlend,
-      squint: Math.max(petBlend, napBlend),
-      blush: .92 * petBlend,
-      mouth: meow.mouthAmount(),
+      squint: Math.max(petBlend, napBlend, .64 * feeding),
+      blush: Math.max(.92 * petBlend, .76 * feeding),
+      mouth: Math.max(meow.mouthAmount(), (.33 + .21 * Math.sin(time * 24)) * feeding),
       yaw: .055 * Math.sin(time * 22) * tension,
-      pitch: .075 * tension + (.21 + .028 * breath) * napBlend,
+      pitch: .075 * tension + (.21 + .028 * breath) * napBlend + .15 * strikeBlend,
       roll: .037 * Math.sin(time * 17) * tension - .15 * napBlend,
     });
   }
@@ -860,21 +909,25 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
       }
     }
 
-    if (pressedSide || mouseInUse(time)) {
+    const striking = rewards.striking;
+    if (!striking && !rewards.dragging && (pressedSide || mouseInUse(time))) {
       reserveMousePaw(time);
       paws.followMouse(mouseSurface(pressedSide), time, Boolean(pressedSide));
     }
     const idleTime = time - lastInput;
     const busy = Boolean(pet || heldKeys.size || mousePresses.size);
-    const napping = !busy && idleTime >= napDelay;
+    const napping = striking || (!busy && idleTime >= napDelay);
     napBlend = MathUtils.damp(napBlend, napping ? 1 : 0, napping ? 3 : 16, seconds);
+    strikeBlend = MathUtils.damp(strikeBlend, Number(striking), striking ? 4.5 : 9, seconds);
     const breath = Math.sin(time * 2.4);
     if (!pet && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
     animateReaction(time, seconds, breath);
+    cat.setCrouch?.(strikeBlend);
     cat.update(seconds);
-    paws.update(time, seconds);
+    paws.update(time, seconds, striking);
     const resting = busy ? 0 : MathUtils.smoothstep(idleTime, 1.8, 3);
-    cat.model.scale.y = 1 + (.0032 * resting + .004 * napBlend) * breath;
+    const bodyHeight = cat.setCrouch ? 1 : 1 - .34 * strikeBlend;
+    cat.model.scale.y = bodyHeight + (.0032 * resting + .004 * napBlend) * breath;
     for (const key of keys.values()) {
       const age = time - key.started;
       const releaseAge = time - key.releaseAt;
@@ -886,14 +939,22 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     camera.updateMatrixWorld();
     cat.draw?.(camera, viewWidth, viewHeight, renderer.getPixelRatio());
     updateNapLetters(seconds);
-    angerMark.style.opacity = tension * (1 - moodBlend);
-    if (tension > .02) {
-      projectHead(.196, .238, .130);
-      angerMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 14, viewWidth - 14)}px`;
-      angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 14, viewHeight - 14)}px`;
-      angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + tension * .36})`;
-    }
+    projectHead(-.212, .162, .130);
+    rewards.positionAnger(
+      MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 18, viewWidth - 18),
+      MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 18, viewHeight - 18),
+    );
     const speechless = typingMood === 'speechless' ? moodBlend : 0;
+    const showAngerMark = rewards.enabled && (time < tenseUntil || rewards.anger > angerMarkThreshold);
+    angerMarkBlend = MathUtils.damp(angerMarkBlend, Number(showAngerMark), showAngerMark ? 13 : 12, seconds);
+    angerMark.style.opacity = angerMarkBlend > .02 ? angerMarkBlend : 0;
+    if (angerMarkBlend > .02) {
+      projectHead(.196, .238, .130);
+      const separation = 38 * Math.max(napBlend, speechless);
+      angerMark.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth + separation, 17, viewWidth - 17)}px`;
+      angerMark.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 17, viewHeight - 17)}px`;
+      angerMark.style.transform = `translate(-50%, -50%) rotate(${8 * Math.sin(time * 20)}deg) scale(${.72 + angerMarkBlend * .36})`;
+    }
     silenceMark.style.opacity = speechless;
     if (speechless > .02) {
       projectHead(.192, .229, .133);
@@ -934,9 +995,21 @@ export async function mountTypingCat(stage, { assetUrl, signal, onStatus, scheme
     previous = now;
   });
   return {
+    setRewardsEnabled(enabled) {
+      const wasStriking = rewards.striking;
+      rewards.setEnabled(enabled);
+      if (!enabled) {
+        angerMarkBlend = 0;
+        angerMark.style.opacity = 0;
+        if (wasStriking) {
+          lastInput = clock();
+          resumeHeldPaws(lastInput);
+        }
+      }
+    },
     playDesktopMouseButton(side, down) {
       if (!mouse.buttons.has(side)) return;
-      if (down === true) pressMouse(side, `desktop:${side}`);
+      if (down === true && !rewards.dragging) pressMouse(side, `desktop:${side}`);
       if (down === false) {
         releaseMouse(`desktop:${side}`);
         releaseMouse(side === 'left' ? 'window:0' : 'window:2');

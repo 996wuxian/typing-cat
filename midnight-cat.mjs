@@ -245,12 +245,12 @@ function drawHead(paint, gaze, reaction, face) {
   paint.restore();
 }
 
-function drawArm(paint, side, endX, endY) {
+function drawArm(paint, side, endX, endY, bodyHeight) {
   const outward = side * endX;
   const splay = MathUtils.smoothstep(outward, 29, 112);
   const crossing = MathUtils.smoothstep(-outward, 14, 108);
   const rootX = side * (24 + 28 * splay - 18 * crossing);
-  const rootY = -57 + 29 * Math.max(splay, crossing);
+  const rootY = (-57 + 29 * Math.max(splay, crossing)) * bodyHeight;
   const dx = endX - rootX;
   const dy = endY - rootY;
   const length = Math.hypot(dx, dy);
@@ -327,6 +327,7 @@ export function createMidnightCat(floatingLayer) {
   let viewportHeight = 1;
   let elapsed = 0;
   let fire = 0;
+  let crouch = 0;
 
   function projectScreen(object, x, y, z, camera) {
     object.localToWorld(anchor.set(x, y, z)).project(camera);
@@ -341,6 +342,9 @@ export function createMidnightCat(floatingLayer) {
     setPointer(x, y) {
       pointer.set(MathUtils.clamp(x, -1, 1), MathUtils.clamp(y, -1, 1));
     },
+    setCrouch(amount) {
+      crouch = amount;
+    },
     setReaction({ tension = 0, squint = 0, yaw = 0, pitch = 0, roll = 0, blush = 0, mouth = 0,
       crying = 0, doze = 0 } = {}) {
       Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze });
@@ -353,7 +357,7 @@ export function createMidnightCat(floatingLayer) {
       gaze.x = MathUtils.damp(gaze.x, pointerX * 6.2, 18, seconds);
       gaze.y = MathUtils.damp(gaze.y, pointerY * -4.5, 18, seconds);
       face.x = MathUtils.damp(face.x, pointerX * 3.8 + reaction.yaw * 16, 9, seconds);
-      face.y = MathUtils.damp(face.y, -130 - pointerY * 2.5 + reaction.pitch * 16, 9, seconds);
+      face.y = MathUtils.damp(face.y, -130 + 53 * crouch - pointerY * 2.5 + reaction.pitch * 16, 9, seconds);
       face.angle = MathUtils.damp(face.angle, reaction.roll * .85, 9, seconds);
       face.closed = MathUtils.damp(face.closed, reaction.squint, 13, seconds);
       face.crying = MathUtils.damp(face.crying, reaction.crying, 12, seconds);
@@ -376,21 +380,35 @@ export function createMidnightCat(floatingLayer) {
       paint.translate(ground.x, ground.y);
       paint.scale(scale, scale);
       const sway = 4 * Math.sin(elapsed * 2.3);
+      const bodyHeight = 1 - .45 * crouch;
       if (fire > .025) drawFire(paint, fire, elapsed);
       // Draw the silhouette first so the overlapping shapes share one outline.
+      paint.save();
+      paint.scale(1, bodyHeight);
       drawBody(paint, sway, outlineColor, outlineWidth);
+      paint.restore();
       paint.save();
       paint.translate(face.x, face.y);
       paint.rotate(face.angle);
       drawHeadShape(paint, outlineColor, outlineWidth);
       paint.restore();
+      paint.save();
+      paint.scale(1, bodyHeight);
       drawBody(paint, sway);
       drawFootEdges(paint);
+      paint.restore();
       for (const { side, wrist } of paws) {
         const point = projectScreen(wrist, pad.x, pad.y, pad.z, camera);
-        drawArm(paint, side, (point.x - ground.x) / scale, (point.y - ground.y) / scale);
+        drawArm(paint, side, (point.x - ground.x) / scale, (point.y - ground.y) / scale, bodyHeight);
       }
       drawHead(paint, gaze, reaction, face);
+    },
+    containsScreenPoint(x, y) {
+      const localX = (x - ground.x) / scale;
+      const localY = (y - ground.y) / scale;
+      const bodyHeight = 1 - .45 * crouch;
+      return Math.hypot((localX - face.x) / 49, (localY - face.y + 5) / 41) <= 1
+        || Math.hypot(localX / 62, (localY / bodyHeight + 53) / 55) <= 1;
     },
     projectHead(x, y, target) {
       const localX = x * 300;

@@ -92,8 +92,10 @@ export function createTypingPaws(model, mouseSide = 'right', contact = {}) {
       mouse = { until: time + 0.48, wrist: wristAt(surface, rotation, pad), rotation, pressed };
     },
 
-    update(time, seconds) {
+    update(time, seconds, resting = false) {
+      if (resting) mouse = null;
       for (const [side, arm] of Object.entries(arms)) {
+        if (resting) arm.motion = null;
         const grip = side === mouseSide && mouse && time < mouse.until ? mouse : null;
         const blend = 1 - Math.exp(-21 * seconds);
         const motion = arm.motion;

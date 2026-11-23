@@ -8,9 +8,11 @@ import { IconCheck, IconChevronDown, IconMinus, IconPin, IconPinnedOff, IconX } 
 import modelUrl from '../../typing-cat.glb?url';
 import { mountTypingCat, typingCatSchemes } from '../../typing-cat-view.mjs';
 import './styles.css';
+import './rewards.css';
 
 const nativeWindow = isTauri() ? getCurrentWindow() : null;
 const backgroundPreference = 'typing-cat.background-key-animations';
+const rewardsPreference = 'typing-cat.rewards-enabled';
 const sizePreference = 'typing-cat.window-scale';
 const schemePreference = 'typing-cat.scene-scheme';
 const schemeOptions = Object.entries(typingCatSchemes);
@@ -117,8 +119,8 @@ function SchemePicker({ scheme, onScheme }) {
   );
 }
 
-function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale, onScheme,
-  onToggleBackground, onError }) {
+function WindowMenu({ background, backgroundBusy, rewardsEnabled, error, scale, scheme, onScale, onScheme,
+  onToggleBackground, onToggleRewards, onError }) {
   const [pinned, setPinned] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   const [draftScale, setDraftScale] = useState(scale);
@@ -183,6 +185,11 @@ function WindowMenu({ background, backgroundBusy, error, scale, scheme, onScale,
         <span>后台打字</span>
         <span className="switch-track" aria-hidden="true" />
       </button>
+      <button type="button" className="switch-row" role="switch" aria-checked={rewardsEnabled}
+        onClick={onToggleRewards} title="开启攒鱼、怒气与喂食玩法">
+        <span>攒鱼与怒气</span>
+        <span className="switch-track" aria-hidden="true" />
+      </button>
       <SchemePicker scheme={scheme} onScheme={onScheme} />
       <label className="size-setting">
         <span>大小 <output>{draftScale}%</output></span>
@@ -205,6 +212,8 @@ function App() {
   const [controlsOpen, setControlsOpen] = useState(false);
   const [background, setBackground] = useState(false);
   const [backgroundBusy, setBackgroundBusy] = useState(false);
+  const [rewardsEnabled, setRewardsEnabled] = useState(() => localStorage.getItem(rewardsPreference) !== 'off');
+  const rewardsEnabledRef = useRef(rewardsEnabled);
   const [scale, setScale] = useState(savedScale);
   const [scheme, setScheme] = useState(savedScheme);
   const reportWindowError = useRef(error => {
@@ -215,9 +224,11 @@ function App() {
   useEffect(() => {
     const abort = new AbortController();
     const stage = target.current;
-    mountTypingCat(stage, { assetUrl: modelUrl, signal: abort.signal, scheme, onStatus: setStatus }).then(controls => {
+    mountTypingCat(stage, { assetUrl: modelUrl, signal: abort.signal, scheme,
+      rewardsEnabled: rewardsEnabledRef.current, onStatus: setStatus }).then(controls => {
       if (!abort.signal.aborted) {
         sceneControls.current = controls;
+        controls.setRewardsEnabled(rewardsEnabledRef.current);
         if (lastDesktopPointer.current) controls.trackDesktopPointer(...lastDesktopPointer.current);
       }
     }).catch(error => {
@@ -237,6 +248,14 @@ function App() {
     setStatus(loadingStatus);
     setScheme(next);
     localStorage.setItem(schemePreference, next);
+  }
+
+  function toggleRewards() {
+    const enabled = !rewardsEnabledRef.current;
+    rewardsEnabledRef.current = enabled;
+    setRewardsEnabled(enabled);
+    sceneControls.current?.setRewardsEnabled(enabled);
+    localStorage.setItem(rewardsPreference, enabled ? 'on' : 'off');
   }
 
   async function updateBackground(enabled) {
@@ -317,7 +336,7 @@ function App() {
 
   function dragWindow(event) {
     if (controlsOpen) setControlsOpen(false);
-    if (!nativeWindow || !event.altKey || event.button !== 0) return;
+    if (!nativeWindow || !event.altKey || event.button !== 0 || event.target.closest('.fish-bank')) return;
     event.preventDefault();
     event.stopPropagation();
     nativeWindow.startDragging().catch(reportWindowError);
@@ -326,6 +345,7 @@ function App() {
   return (
     <div className="desktop">
       {controlsOpen && <WindowMenu background={background} backgroundBusy={backgroundBusy}
+        rewardsEnabled={rewardsEnabled} onToggleRewards={toggleRewards}
         error={windowError} scale={scale} scheme={scheme} onScale={updateScale} onScheme={updateScheme}
         onToggleBackground={() => updateBackground(!background)} onError={reportWindowError} />}
       <main key={scheme} className="stage" data-state="loading" ref={target} onPointerDownCapture={dragWindow}>
