@@ -1,9 +1,9 @@
 import { Euler, MathUtils, Quaternion, Vector3 } from 'three';
 
-const approachTime = 0.092;
-const holdTime = 0.202;
-const minimumHold = 0.15;
-const returnDuration = 0.168;
+const approachTime = 0.074;
+const holdTime = 0.19;
+const minimumHold = 0.14;
+const returnDuration = 0.145;
 const neutralRotation = new Quaternion();
 const pawPad = new Vector3(0, -.068, .087);
 const outerToes = new Vector3(.031, -.064, .091);
@@ -108,13 +108,13 @@ export function createTypingPaws(model, mouseSide = 'right', contact = {}) {
         } else if (motion && age < approachTime) {
           const progress = MathUtils.clamp(age / approachTime, 0, 1);
           arm.wrist.lerpVectors(motion.from, motion.contact, MathUtils.smoothstep(progress, 0, 1));
-          arm.wrist.y += 0.036 * Math.sin(progress * Math.PI);
+          arm.wrist.y += 0.056 * Math.sin(progress * Math.PI);
         } else if (motion && time < motion.releaseAt) {
           arm.wrist.copy(motion.contact);
         } else if (motion && time < motion.releaseAt + returnDuration) {
           const progress = (time - motion.releaseAt) / returnDuration;
           arm.wrist.lerpVectors(motion.contact, arm.rest, MathUtils.smoothstep(progress, 0, 1));
-          arm.wrist.y += 0.028 * Math.sin(progress * Math.PI);
+          arm.wrist.y += 0.042 * Math.sin(progress * Math.PI);
         } else {
           arm.motion = null;
           arm.wrist.lerp(arm.rest, 1 - Math.exp(-15 * seconds));

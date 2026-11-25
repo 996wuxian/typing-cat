@@ -24,6 +24,20 @@
         "resizable": true,
         "center": true,
         "shadow": false
+      },
+      {
+        "label": "settings",
+        "title": "设置",
+        "url": "index.html?window=settings",
+        "width": 264,
+        "height": 396,
+        "decorations": false,
+        "skipTaskbar": true,
+        "transparent": true,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "visible": false
       }
     ],
     "security": {

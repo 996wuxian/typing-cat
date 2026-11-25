@@ -218,8 +218,8 @@ export async function loadSeatedCat(
     setPointer(x, y) {
       pointerX = MathUtils.clamp(x, -1, 1);
       pointerY = MathUtils.clamp(y, -1, 1);
-      targetYaw = radians(14) * pointerX;
-      targetPitch = -radians(7) * pointerY;
+      targetYaw = radians(21) * pointerX;
+      targetPitch = -radians(12) * pointerY;
     },
 
     setReaction({ tension = 0, squint = 0, yaw = 0, pitch = 0, roll = 0, blush = 0, mouth = 0,
@@ -250,8 +250,8 @@ export async function loadSeatedCat(
       head.quaternion.copy(headRest).multiply(offset);
 
       if (eyes) {
-        eyes.gaze.x = MathUtils.damp(eyes.gaze.x, 15.5 * pointerX * pointerWeight, 17, deltaSeconds);
-        eyes.gaze.y = MathUtils.damp(eyes.gaze.y, -11 * pointerY * pointerWeight + 9 * reactionCrying, 17, deltaSeconds);
+        eyes.gaze.x = MathUtils.damp(eyes.gaze.x, 19.5 * pointerX * pointerWeight, 17, deltaSeconds);
+        eyes.gaze.y = MathUtils.damp(eyes.gaze.y, -14 * pointerY * pointerWeight + 9 * reactionCrying, 17, deltaSeconds);
         eyes.expression.x = MathUtils.damp(eyes.expression.x, urgent, 11, deltaSeconds);
         eyes.expression.y = MathUtils.damp(eyes.expression.y, relaxed, 11, deltaSeconds);
         eyes.expression.z = MathUtils.damp(eyes.expression.z, reactionCrying, 11, deltaSeconds);

@@ -5,7 +5,44 @@ const showAngerAt = 30;
 const angerPerFish = 42;
 const paceWindow = 2.5;
 const maxAngerPerSecond = 1.1;
-const fishIcon = '<span class="fish-icon" aria-hidden="true"><span class="fish-eye"></span></span>';
+const fishIcon = '<canvas class="fish-icon" width="102" height="66" aria-hidden="true"></canvas>';
+
+function drawFishIcon(canvas) {
+  const paint = canvas.getContext('2d');
+  if (!paint) return;
+  paint.scale(3, 3);
+  paint.beginPath();
+  paint.moveTo(2.7, 11.6);
+  paint.bezierCurveTo(2.8, 6.7, 7.3, 3.4, 13, 3.7);
+  paint.quadraticCurveTo(15.5, 1.8, 19, 2.7);
+  paint.quadraticCurveTo(18.1, 4.1, 18.8, 5.5);
+  paint.quadraticCurveTo(21.4, 6.9, 22.8, 9.2);
+  paint.quadraticCurveTo(26.6, 5.4, 31.4, 4.8);
+  paint.quadraticCurveTo(29.1, 9.6, 29.2, 11.2);
+  paint.quadraticCurveTo(29.1, 13, 31.4, 17.9);
+  paint.quadraticCurveTo(26.7, 16.9, 22.7, 13.4);
+  paint.bezierCurveTo(20.3, 17.9, 16.4, 20.4, 11, 19.8);
+  paint.bezierCurveTo(6.1, 19.3, 2.7, 15.9, 2.7, 11.6);
+  paint.closePath();
+  paint.fillStyle = '#171719';
+  paint.fill();
+  paint.strokeStyle = '#fff';
+  paint.lineWidth = 1.65;
+  paint.lineJoin = 'round';
+  paint.stroke();
+
+  paint.beginPath();
+  paint.moveTo(11, 8.1);
+  paint.quadraticCurveTo(14, 11.5, 11, 15.4);
+  paint.strokeStyle = '#81827b';
+  paint.lineWidth = .8;
+  paint.lineCap = 'round';
+  paint.stroke();
+  paint.beginPath();
+  paint.arc(7.4, 10.4, 1.25, 0, Math.PI * 2);
+  paint.fillStyle = '#dff375';
+  paint.fill();
+}
 
 function readState() {
   try {
@@ -30,21 +67,28 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   hud.className = 'reward-hud';
   hud.hidden = !enabled;
   hud.innerHTML = `
-    <button type="button" class="fish-bank">
-      ${fishIcon}<span class="fish-count"></span>
-    </button>
-    <div class="reward-panel">
-      <span class="reward-progress-label">攒鱼</span>
-      <div class="reward-track" role="progressbar" aria-label="攒鱼进度" aria-valuemin="0">
-        <span class="reward-fill"></span><span class="reward-sparks" aria-hidden="true"></span>
+    <div class="reward-drawer" data-open="false">
+      <div class="reward-reveal">
+        <div class="reward-row">
+          <button type="button" class="fish-bank">
+            ${fishIcon}<span class="fish-count"></span>
+          </button>
+          <div class="reward-panel">
+            <span class="reward-progress-label">攒鱼</span>
+            <div class="reward-track" role="progressbar" aria-label="攒鱼进度" aria-valuemin="0">
+              <span class="reward-fill"></span><span class="reward-sparks" aria-hidden="true"></span>
+            </div>
+          </div>
+          <div class="fish-drop-hint" hidden aria-hidden="true">拖鱼喂猫</div>
+        </div>
       </div>
     </div>
     <div class="reward-anger" role="meter" aria-label="怒气" aria-valuemin="0" aria-valuemax="100" hidden>
       <span class="reward-anger-glyph" aria-hidden="true">怒</span><span class="reward-anger-count"></span>
     </div>
-    <div class="fish-drop-hint" hidden aria-hidden="true">拖鱼喂猫</div>
     <div class="fish-ghost" hidden aria-hidden="true">${fishIcon}</div>
     <span class="reward-announcement" role="status"></span>`;
+  const drawer = hud.querySelector('.reward-drawer');
   const bank = hud.querySelector('.fish-bank');
   const count = hud.querySelector('.fish-count');
   const progress = hud.querySelector('.reward-track');
@@ -54,10 +98,14 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   const hint = hud.querySelector('.fish-drop-hint');
   const ghost = hud.querySelector('.fish-ghost');
   const announcement = hud.querySelector('.reward-announcement');
+  hud.querySelectorAll('.fish-icon').forEach(drawFishIcon);
   progress.setAttribute('aria-valuemax', keysPerFish);
   stage.append(hud);
 
   let drag = null;
+  let hovered = false;
+  let bankFocused = false;
+  let closeTimer;
   let saveTimer;
   let fullTimer;
   const keyTimes = [];
@@ -104,8 +152,32 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     anger.setAttribute('aria-valuenow', percent);
   }
 
+  function updateDrawer() {
+    if (enabled && (hovered || bankFocused || drag)) {
+      clearTimeout(closeTimer);
+      closeTimer = undefined;
+      drawer.dataset.open = 'true';
+    } else if (drawer.dataset.open === 'true' && closeTimer === undefined) {
+      closeTimer = setTimeout(() => {
+        closeTimer = undefined;
+        drawer.dataset.open = 'false';
+      }, 230);
+    }
+  }
+
+  function checkHover(event) {
+    if (!enabled || event.pointerType === 'touch') return;
+    const { clientX: x, clientY: y } = event;
+    hovered = canFeedAt(x, y);
+    if (!hovered && drawer.dataset.open === 'true') {
+      const { left, right, top, bottom } = drawer.getBoundingClientRect();
+      hovered = x >= left && x <= right && y >= top && y <= bottom + 18;
+    }
+    updateDrawer();
+  }
+
   function burst(fraction, full) {
-    if (reduceMotion.matches) return;
+    if (reduceMotion.matches || drawer.dataset.open !== 'true') return;
     for (let i = 0; i < (full ? 11 : 2); i++) {
       if (sparks.childElementCount >= 32) sparks.firstElementChild.remove();
       const spark = document.createElement('i');
@@ -142,8 +214,23 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     drag = null;
     ghost.hidden = true;
     if (bank.hasPointerCapture(id)) bank.releasePointerCapture(id);
+    updateDrawer();
   }
 
+  stage.addEventListener('pointerenter', checkHover, events);
+  stage.addEventListener('pointermove', checkHover, { ...events, capture: true });
+  stage.addEventListener('pointerleave', () => {
+    hovered = false;
+    updateDrawer();
+  }, events);
+  bank.addEventListener('focus', () => {
+    bankFocused = true;
+    updateDrawer();
+  }, events);
+  bank.addEventListener('blur', () => {
+    bankFocused = false;
+    updateDrawer();
+  }, events);
   bank.addEventListener('pointerdown', event => {
     event.stopPropagation();
     if (event.button !== 0) return;
@@ -151,6 +238,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     if (!enabled || drag || !state.fish || !state.anger) return;
     bank.setPointerCapture(event.pointerId);
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    updateDrawer();
   }, events);
   bank.addEventListener('pointermove', event => {
     event.stopPropagation();
@@ -174,7 +262,12 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   bank.addEventListener('click', event => {
     if (event.detail === 0) feed();
   }, events);
-  window.addEventListener('blur', cancelDrag, events);
+  window.addEventListener('blur', () => {
+    hovered = false;
+    bankFocused = false;
+    cancelDrag();
+    updateDrawer();
+  }, events);
   window.addEventListener('pagehide', save, events);
 
   render();
@@ -188,7 +281,12 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
       enabled = active;
       hud.hidden = !enabled;
       if (!enabled) {
+        hovered = false;
+        bankFocused = false;
         cancelDrag();
+        clearTimeout(closeTimer);
+        closeTimer = undefined;
+        drawer.dataset.open = 'false';
         keyTimes.length = 0;
         clearTimeout(fullTimer);
         fullTimer = undefined;
@@ -199,6 +297,10 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     positionAnger(x, y) {
       anger.style.left = `${x}px`;
       anger.style.top = `${y}px`;
+    },
+    positionDrawer(x, y) {
+      drawer.style.left = `${x}px`;
+      drawer.style.top = `${y}px`;
     },
     recordKey(time) {
       if (!enabled) return;
@@ -228,6 +330,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     dispose() {
       cancelDrag();
       controller.abort();
+      clearTimeout(closeTimer);
       clearTimeout(fullTimer);
       save();
       hud.remove();
