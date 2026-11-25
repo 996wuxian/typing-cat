@@ -7,6 +7,14 @@ const tailWidth = 14.5;
 const headRestY = -149;
 const bodyCenterX = -.028;
 
+export const midnightCatCoats = {
+  black: { label: '小黑猫' },
+  siamese: { label: '暹罗猫' },
+  tabby: { label: '狸花猫' },
+  ragdoll: { label: '布偶猫' },
+  orange: { label: '大橘猫' },
+  calico: { label: '三花猫' },
+};
 export const midnightEyeStyles = {
   xiaohei: { label: '星瞳' },
   starry: { label: '闪亮星星眼' },
@@ -21,6 +29,39 @@ export const midnightHeadphoneStyles = {
   marshall: { label: '摇滚经典' },
   sakura: { label: '樱粉甜心' },
   retro: { label: '复古橙绵' },
+};
+
+const catCoatPalettes = {
+  black: {
+    body: black, head: black, tail: black, arm: black, paw: black,
+    rim: null, nose: '#34322f', whisker: '#ece7db', whiskerHalo: '#161615', lid: ivory, ring: ivory,
+    eyeRim: null, haunch: '#575450', armEdge: ['#3c3b38', '#64615d'],
+  },
+  siamese: {
+    body: '#f2e6d3', head: '#f2e6d3', tail: '#483228', arm: '#ebd9c1', paw: '#442f25',
+    rim: '#5c463a', nose: '#38261f', whisker: '#453229', whiskerHalo: ivory, lid: '#443026', ring: '#443026',
+    eyeRim: '#4a352b', haunch: '#b79e85', armEdge: ['#8c6c56', '#3a271f'],
+  },
+  tabby: {
+    body: '#b0a69a', head: '#b0a69a', tail: '#a89e92', arm: '#aba195', paw: '#f9f5ee',
+    rim: '#4c433c', nose: '#d48c90', whisker: '#433a34', whiskerHalo: ivory, lid: '#3f3631', ring: '#3f3631',
+    eyeRim: '#483f39', haunch: '#5b5149', armEdge: ['#73685e', '#94887c'],
+  },
+  ragdoll: {
+    body: '#f8f4ee', head: '#f8f4ee', tail: '#826e62', arm: '#f8f4ee', paw: '#fcfaf7',
+    rim: '#6c5e56', nose: '#de96a2', whisker: '#594c45', whiskerHalo: ivory, lid: '#4c3f38', ring: '#4c3f38',
+    eyeRim: '#5a4c45', haunch: '#a6968c', armEdge: ['#c9beb6', '#9e9087'],
+  },
+  orange: {
+    body: '#f3b165', head: '#f3b165', tail: '#f0aa5c', arm: '#efaa5e', paw: '#fff8ed',
+    rim: '#805230', nose: '#ea9498', whisker: '#6c4526', whiskerHalo: ivory, lid: '#643d20', ring: '#643d20',
+    eyeRim: '#754b2b', haunch: '#c46c2a', armEdge: ['#cc7530', '#e09a56'],
+  },
+  calico: {
+    body: '#f8f4ed', head: '#f8f4ed', tail: '#f6f2eb', arm: '#f8f4ed', paw: '#fcfaf6',
+    rim: '#4c423c', nose: '#de929c', whisker: '#473d38', whiskerHalo: ivory, lid: '#3b322e', ring: '#3b322e',
+    eyeRim: '#453b36', haunch: '#8e837c', armEdge: ['#bdb3ab', '#8b8078'],
+  },
 };
 const flameTongues = [
   { x: -50, y: -20, height: 112, width: 31, lean: -37, phase: .5 },
@@ -254,6 +295,60 @@ function solveTailHit(targetX, targetY) {
   return rel;
 }
 
+function sampleTailSpline(pts, stepsPerSeg = 7) {
+  const samples = [];
+  let sx = pts[0][0];
+  let sy = pts[0][1];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const cx = pts[i][0];
+    const cy = pts[i][1];
+    const ex = i === pts.length - 2 ? pts[i + 1][0] : (cx + pts[i + 1][0]) * .5;
+    const ey = i === pts.length - 2 ? pts[i + 1][1] : (cy + pts[i + 1][1]) * .5;
+    for (let k = i === 1 ? 0 : 1; k <= stepsPerSeg; k++) {
+      const t = k / stepsPerSeg;
+      const mt = 1 - t;
+      samples.push([
+        mt * mt * sx + 2 * mt * t * cx + t * t * ex,
+        mt * mt * sy + 2 * mt * t * cy + t * t * ey,
+      ]);
+    }
+    sx = ex;
+    sy = ey;
+  }
+  return samples;
+}
+
+function buildTailPath(samples, radius) {
+  const n = samples.length;
+  const left = [];
+  const right = [];
+  for (let i = 0; i < n; i++) {
+    const prev = samples[Math.max(0, i - 1)];
+    const next = samples[Math.min(n - 1, i + 1)];
+    const dx = next[0] - prev[0];
+    const dy = next[1] - prev[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * radius;
+    const ny = (dx / len) * radius;
+    left.push([samples[i][0] + nx, samples[i][1] + ny]);
+    right.push([samples[i][0] - nx, samples[i][1] - ny]);
+  }
+  const path = new Path2D();
+  path.moveTo(left[0][0], left[0][1]);
+  for (let i = 1; i < n; i++) path.lineTo(left[i][0], left[i][1]);
+  const tip = samples[n - 1];
+  const tipPrev = samples[n - 2];
+  const tipAng = Math.atan2(tip[1] - tipPrev[1], tip[0] - tipPrev[0]);
+  path.arc(tip[0], tip[1], radius, tipAng + Math.PI * .5, tipAng - Math.PI * .5, true);
+  for (let i = n - 2; i >= 0; i--) path.lineTo(right[i][0], right[i][1]);
+  const root = samples[0];
+  const rootNext = samples[1];
+  const rootAng = Math.atan2(rootNext[1] - root[1], rootNext[0] - root[0]);
+  path.arc(root[0], root[1], radius, rootAng - Math.PI * .5, rootAng + Math.PI * .5, true);
+  path.closePath();
+  return path;
+}
+
 function drawTailChain(paint, pts, color, width) {
   paint.beginPath();
   paint.moveTo(pts[0][0], pts[0][1]);
@@ -369,7 +464,7 @@ function resolveFaceGaze(gaze, tension, closed) {
   return { x, y, angry };
 }
 
-function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
+function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   const closed = Math.max(face.closed, face.crying);
   const lid = MathUtils.smoothstep(closed, .62, .94);
   const { x, y, angry } = eyeOffset;
@@ -393,14 +488,23 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
       paint.clip();
       paint.rotate(-tilt);
     }
+    const happyLift = face.happy > .02 && face.crying <= .02 ? face.happy : 0;
+    const happyCheekY = happyLift ? MathUtils.lerp(rh + 9, 13.8, happyLift) : 0;
+    if (happyLift) {
+      paint.beginPath();
+      paint.rect(-rw - 10, -rh - 10, (rw + 10) * 2, (rh + 10) * 2);
+      paint.ellipse(0, happyCheekY, rw + 2.4, 8.1, 0, 0, Math.PI * 2);
+      paint.clip('evenodd');
+    }
 
     if (eyeStyle === 'ring') {
       paint.beginPath();
       paint.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
-      stroke(paint, ivory, 2.7 + .6 * angry);
+      stroke(paint, coat.ring, 2.7 + .6 * angry);
     } else if (eyeStyle === 'lime') {
       paint.beginPath();
       paint.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
+      if (coat.eyeRim) stroke(paint, coat.eyeRim, 2.2);
       fillShape(paint, '#daf478');
       paint.clip();
       const open = 1 - closed;
@@ -413,6 +517,7 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
     } else {
       paint.beginPath();
       paint.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
+      if (coat.eyeRim) stroke(paint, coat.eyeRim, 2.2);
       fillShape(paint, ivory);
       paint.clip();
       const open = 1 - closed;
@@ -440,14 +545,16 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
       }
     }
     paint.restore();
-    if (face.happy > .02 && face.crying <= .02) {
-      const smileLift = face.happy * (1 - lid);
-      if (smileLift > .02) {
-        paint.save();
-        paint.globalAlpha = smileLift;
-        ellipse(paint, 0, MathUtils.lerp(rh + 9, 13.8, face.happy), rw + 2.4, 8.1, black);
-        paint.restore();
-      }
+    if (happyLift && coat.eyeRim && eyeStyle !== 'ring') {
+      paint.save();
+      paint.globalAlpha = (1 - lid) * MathUtils.smoothstep(happyLift, .12, .55);
+      paint.beginPath();
+      paint.ellipse(0, 0, rw + .8, rh + .8, 0, 0, Math.PI * 2);
+      paint.clip();
+      paint.beginPath();
+      paint.ellipse(0, happyCheekY, rw + 2.4, 8.1, 0, 0, Math.PI * 2);
+      stroke(paint, coat.eyeRim, 1.45);
+      paint.restore();
     }
   }
 
@@ -457,11 +564,11 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
     if (face.happy > .35 && face.crying <= .02) {
       paint.moveTo(-10.2, 2.4);
       paint.quadraticCurveTo(0, -6.2, 10.2, 2.4);
-      stroke(paint, ivory, 2.0);
+      stroke(paint, coat.lid, 2.0);
     } else {
       paint.moveTo(-10.7, .8);
       paint.quadraticCurveTo(0, MathUtils.lerp(7, -3, face.crying), 10.7, .8 + side * face.crying);
-      stroke(paint, ivory, 1.8);
+      stroke(paint, coat.lid, 1.9);
     }
   }
   if (face.crying > .01) {
@@ -475,9 +582,9 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
 }
 
 const whiskerCurves = [
-  [39, 7.5, 46, 5.8, 52.5, 4.5],
-  [40, 13, 47, 12.8, 54, 12.6],
-  [38, 18.5, 44.5, 19.8, 50.5, 21],
+  [27.5, 11.8, 39.5, 6.8, 51.0, 10.2],
+  [28.5, 16.0, 41.0, 13.2, 52.5, 17.6],
+  [27.0, 20.2, 39.0, 19.4, 49.5, 25.0],
 ];
 
 function drawWhiskers(paint, color, width, twitch, shiftX, shiftY) {
@@ -583,27 +690,197 @@ function drawHeadphones(paint, amount, elapsed, style) {
   paint.restore();
 }
 
-function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicBlend = 0, headphoneStyle = 'cream') {
+function drawTaperStripe(paint, x0, y0, cx, cy, x1, y1, w0, color) {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = (-dy / len) * w0;
+  const ny = (dx / len) * w0;
+  paint.beginPath();
+  paint.moveTo(x0 + nx, y0 + ny);
+  paint.quadraticCurveTo(cx + nx * .48, cy + ny * .48, x1, y1);
+  paint.quadraticCurveTo(cx - nx * .48, cy - ny * .48, x0 - nx, y0 - ny);
+  paint.closePath();
+  fillShape(paint, color);
+}
+
+function drawTailMarkings(paint, pts, coatKey) {
+  if (coatKey !== 'tabby' && coatKey !== 'orange' && coatKey !== 'calico') return;
+  const samples = sampleTailSpline(pts);
+  const clipPath = buildTailPath(samples, tailWidth * .5);
+  paint.save();
+  paint.clip(clipPath);
+  if (coatKey === 'tabby' || coatKey === 'orange') {
+    const stripe = coatKey === 'tabby' ? '#443b35' : '#ce742c';
+    const tipColor = coatKey === 'tabby' ? '#403732' : '#fff7eb';
+    const last = samples.length - 1;
+    for (const frac of [.16, .32, .48, .64, .79]) {
+      const idx = Math.round(frac * last);
+      const prev = samples[Math.max(0, idx - 1)];
+      const next = samples[Math.min(last, idx + 1)];
+      const [cx, cy] = samples[idx];
+      const angle = Math.atan2(next[1] - prev[1], next[0] - prev[0]);
+      ellipse(paint, cx, cy, 2.7, 13.5, stripe, angle);
+    }
+    const tipStart = Math.round(.86 * last);
+    for (let i = tipStart; i <= last; i++) {
+      ellipse(paint, samples[i][0], samples[i][1], 10.5, 10.5, tipColor);
+    }
+  } else if (coatKey === 'calico') {
+    const last = samples.length - 1;
+    for (let i = Math.round(.18 * last); i <= Math.round(.54 * last); i++) {
+      ellipse(paint, samples[i][0], samples[i][1], 11.5, 11.5, '#e68a42');
+    }
+    for (let i = Math.round(.67 * last); i <= last; i++) {
+      ellipse(paint, samples[i][0], samples[i][1], 11.5, 11.5, '#2c2a2c');
+    }
+  }
+  paint.restore();
+}
+
+function drawBodyMarkings(paint, bodyPath, coatKey, crouch) {
+  if (coatKey === 'black') return;
+  paint.save();
+  paint.clip(bodyPath);
+  if (coatKey === 'siamese') {
+    ellipse(paint, MathUtils.lerp(-40, -34, crouch), MathUtils.lerp(-1, 3, crouch), 14, 10, '#4a342a');
+    ellipse(paint, MathUtils.lerp(40, 48, crouch), MathUtils.lerp(-1, 2, crouch), 14, 10, '#4a342a');
+    paint.globalAlpha = .52;
+    ellipse(paint, MathUtils.lerp(0, 14, crouch), MathUtils.lerp(-56, -34, crouch), 36, MathUtils.lerp(44, 26, crouch), '#dec8ad');
+  } else if (coatKey === 'tabby' || coatKey === 'orange') {
+    const cream = coatKey === 'tabby' ? '#f9f5ee' : '#fff8ed';
+    const stripe = coatKey === 'tabby' ? '#443b35' : '#ce742c';
+    // Natural chest bib + soft pear belly + cute white foot socks
+    ellipse(paint, MathUtils.lerp(0, -14, crouch), MathUtils.lerp(-106, -12, crouch), 22, MathUtils.lerp(24, 16, crouch), cream);
+    ellipse(paint, MathUtils.lerp(0, 8, crouch), MathUtils.lerp(-48, 0, crouch), 25, MathUtils.lerp(42, 16, crouch), cream);
+    ellipse(paint, MathUtils.lerp(-41, -36, crouch), 0, 12, 7.5, cream);
+    ellipse(paint, MathUtils.lerp(41, 46, crouch), 0, 12, 7.5, cream);
+    if (crouch < .65) {
+      paint.globalAlpha = 1 - MathUtils.smoothstep(crouch, .2, .65);
+      for (const side of [-1, 1]) {
+        for (const [y0, y1, reach] of [[-96, -88, 28], [-74, -67, 30], [-52, -46, 26]]) {
+          drawTaperStripe(paint, side * 58, y0, side * 42, (y0 + y1) * .5, side * reach, y1, 3.4, stripe);
+        }
+      }
+    }
+    if (crouch > .25) {
+      paint.globalAlpha = MathUtils.smoothstep(crouch, .25, .75);
+      for (const xx of [-6, 14, 34]) {
+        drawTaperStripe(paint, xx, -66, xx + 4, -46, xx + 2, -26, 3.4, stripe);
+      }
+    }
+  } else if (coatKey === 'ragdoll') {
+    paint.globalAlpha = .54;
+    ellipse(paint, MathUtils.lerp(-48, 14, crouch), MathUtils.lerp(-54, -46, crouch), MathUtils.lerp(18, 34, crouch), MathUtils.lerp(30, 18, crouch), '#a8968a');
+    if (crouch < .7) {
+      paint.globalAlpha = .54 * (1 - MathUtils.smoothstep(crouch, .2, .7));
+      ellipse(paint, 48, -54, 18, 30, '#a8968a');
+      paint.globalAlpha = 1;
+      ellipse(paint, 0, -96, 32, 16, '#fffdf9');
+    }
+  } else if (coatKey === 'calico') {
+    ellipse(paint, MathUtils.lerp(-38, -2, crouch), MathUtils.lerp(-74, -48, crouch), 28, MathUtils.lerp(34, 24, crouch), '#e68a42');
+    ellipse(paint, MathUtils.lerp(40, 42, crouch), MathUtils.lerp(-48, -32, crouch), 26, MathUtils.lerp(32, 24, crouch), '#2c2a2c');
+    if (crouch < .6) {
+      paint.globalAlpha = 1 - MathUtils.smoothstep(crouch, .2, .6);
+      ellipse(paint, 36, -98, 22, 22, '#e68a42');
+    }
+  }
+  paint.restore();
+}
+
+function drawHeadMarkings(paint, coatKey, featureX, featureY) {
+  if (coatKey === 'black') return;
+  paint.save();
+  paint.clip(headShape);
+  const sx = featureX * .35;
+  const sy = featureY * .35;
+  if (coatKey === 'siamese') {
+    ellipse(paint, -29, -46, 17, 21, '#422e25', -.25);
+    ellipse(paint, 29, -46, 17, 21, '#422e25', .25);
+    const mask = paint.createRadialGradient(sx, 7 + sy, 4, sx, 6 + sy, 29);
+    mask.addColorStop(0, '#3f2b22');
+    mask.addColorStop(.42, '#4d362ce0');
+    mask.addColorStop(.74, '#6b4e3f6e');
+    mask.addColorStop(1, '#6b4e3f00');
+    ellipse(paint, sx, 6 + sy, 29, 21, mask);
+  } else if (coatKey === 'tabby' || coatKey === 'orange') {
+    const isTabby = coatKey === 'tabby';
+    const stripe = isTabby ? '#443b35' : '#ce742c';
+    const earTip = isTabby ? '#443b35' : '#de8a3e';
+    const earIn = isTabby ? '#e0b2ae' : '#f8c6ba';
+    const cream = isTabby ? '#f9f5ee' : '#fff8ed';
+    for (const side of [-1, 1]) {
+      ellipse(paint, side * 30, -51, 12, 12, earTip, side * .2);
+      ellipse(paint, side * 28, -41, 6.2, 9.5, earIn, side * .22);
+    }
+    if (isTabby) {
+      ellipse(paint, sx, 23 + sy, 25, 14, cream);
+      ellipse(paint, -11 + sx * .8, 19 + sy, 11, 8, cream);
+      ellipse(paint, 11 + sx * .8, 19 + sy, 11, 8, cream);
+    } else {
+      ellipse(paint, sx, 24 + sy, 34, 16, cream);
+      ellipse(paint, -16 + sx * .8, 19 + sy, 15, 11, cream);
+      ellipse(paint, 16 + sx * .8, 19 + sy, 15, 11, cream);
+    }
+    // Soft tapered teardrop forehead tufts + delicate curved temple tabby ticks
+    drawTaperStripe(paint, sx * .4, -40, sx * .4, -30, sx * .4, -20 + sy * .25, 2.8, stripe);
+    for (const side of [-1, 1]) {
+      drawTaperStripe(paint, side * 10 + sx * .4, -40, side * 9 + sx * .4, -31, side * 6.5 + sx * .4, -23 + sy * .25, 2.5, stripe);
+      drawTaperStripe(paint, side * 49, -4 + sy * .35, side * 42, -3 + sy * .35, side * 35 + sx * .25, -1 + sy * .35, 2.1, stripe);
+      drawTaperStripe(paint, side * 49, 4 + sy * .35, side * 42, 5 + sy * .35, side * 36 + sx * .25, 6.5 + sy * .35, 1.8, stripe);
+    }
+  } else if (coatKey === 'ragdoll') {
+    for (const side of [-1, 1]) {
+      paint.beginPath();
+      paint.moveTo(side * 8, -44);
+      paint.lineTo(side * 32, -62);
+      paint.lineTo(side * 50, -24);
+      paint.lineTo(side * 50, 14);
+      paint.lineTo(side * 30, 14);
+      paint.lineTo(side * 14, -18);
+      paint.closePath();
+      fillShape(paint, '#846e60');
+      ellipse(paint, side * 30, -47, 13, 17, '#68554a', side * .2);
+      ellipse(paint, side * 28, -41, 5.5, 9, '#e0bab8', side * .2);
+    }
+    paint.beginPath();
+    paint.moveTo(sx * .5, -34);
+    paint.lineTo(-22 + sx * .5, 18 + sy * .4);
+    paint.lineTo(22 + sx * .5, 18 + sy * .4);
+    paint.closePath();
+    fillShape(paint, '#f8f4ee');
+  } else if (coatKey === 'calico') {
+    ellipse(paint, -28, -32, 26, 28, '#e68a42', -.2);
+    ellipse(paint, 29, -30, 25, 29, '#2c2a2c', .2);
+    ellipse(paint, -27, -41, 6, 9.5, '#f4b8ae', -.2);
+    ellipse(paint, 27, -41, 6, 9.5, '#d6a2a6', .2);
+  }
+  paint.restore();
+}
+
+function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicBlend = 0, headphoneStyle = 'cream', coatKey = 'black') {
+  const coat = catCoatPalettes[coatKey] ?? catCoatPalettes.black;
   paint.save();
   positionHead(paint, face);
   const closed = Math.max(face.closed, face.crying);
   const eyeOffset = resolveFaceGaze(gaze, reaction.tension, closed);
   const featureX = eyeOffset.x * .82;
   const featureY = eyeOffset.y * .82;
-  drawWhiskers(paint, black, 2, twitch, featureX, featureY);
-  paint.fillStyle = black;
+  paint.fillStyle = coat.head;
   paint.fill(headShape);
+  drawHeadMarkings(paint, coatKey, featureX, featureY);
 
   for (const side of [-1, 1]) {
-    drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed);
+    drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat);
     if (reaction.blush > .01) {
       paint.globalAlpha = reaction.blush * .72;
-      ellipse(paint, side * 30 + featureX * .7, 14.5 + featureY * .65, 6.2, 2.9, '#ed89a5', side * .08);
+      ellipse(paint, side * 29 + featureX * .7, 14.5 + featureY * .65, 6.2, 2.9, '#ed89a5', side * .08);
       paint.globalAlpha = 1;
     }
   }
 
-  ellipse(paint, .8 + featureX, 13.8 + featureY, 2.8, 1.35, '#34322f', -.1);
+  ellipse(paint, .8 + featureX, 13.8 + featureY, 2.8, 1.35, coat.nose, -.1);
   if (reaction.mouth > .04) {
     ellipse(paint, featureX * .85, 22 + featureY * .65, 4.1, 1 + 4.5 * reaction.mouth, '#d392a6');
   } else if (face.crying > .01) {
@@ -611,7 +888,7 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicB
     paint.beginPath();
     paint.moveTo(-4 + featureX * .85, 22 + featureY * .65);
     paint.quadraticCurveTo(featureX * .85, 18.5 + featureY * .65, 4 + featureX * .85, 22 + featureY * .65);
-    stroke(paint, '#c3b6b7', 1.25);
+    stroke(paint, coat.lid, 1.35);
   } else if (eyeOffset.angry > .05) {
     const mx = featureX * .88;
     const my = 20.8 + featureY * .62;
@@ -620,13 +897,16 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicB
     paint.beginPath();
     paint.moveTo(mx - 3.6, my + 1.1 * pout);
     paint.quadraticCurveTo(mx, my - 1.3 * pout, mx + 3.6, my + 1.1 * pout);
-    stroke(paint, ivory, 1.8);
+    stroke(paint, coat.lid, 1.8);
   }
+  paint.globalAlpha = 1;
+  drawWhiskers(paint, coat.whisker, 1.05, twitch, featureX, featureY);
   drawHeadphones(paint, musicBlend, elapsed, headphoneStyle);
   paint.restore();
 }
 
-function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = false) {
+function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = false, coatKey = 'black') {
+  const coat = catCoatPalettes[coatKey] ?? catCoatPalettes.black;
   const stand = 1 - crouch;
   const outward = side * endX;
   const splay = MathUtils.smoothstep(outward, 33, 82) * stand;
@@ -674,15 +954,25 @@ function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = fals
   paint.closePath();
   if (outline) {
     stroke(paint, ivory, silhouetteWidth);
+    if (coat.rim) stroke(paint, coat.rim, 2.0);
   } else {
-    fillShape(paint, black);
+    if (coat.arm !== coat.paw) {
+      const armGrad = paint.createLinearGradient(0, 0, 0, tip);
+      armGrad.addColorStop(0, coat.arm);
+      armGrad.addColorStop(.52, coat.arm);
+      armGrad.addColorStop(.82, coat.paw);
+      armGrad.addColorStop(1, coat.paw);
+      fillShape(paint, armGrad);
+    } else {
+      fillShape(paint, coat.arm);
+    }
     const innerEdge = 1 - splay;
     if (innerEdge > .02) {
       const edge = paint.createLinearGradient(0, 0, 0, tip);
-      edge.addColorStop(0, black);
-      edge.addColorStop(.38, '#3c3b38');
-      edge.addColorStop(.85, '#64615d');
-      edge.addColorStop(1, '#64615d00');
+      edge.addColorStop(0, coat.arm);
+      edge.addColorStop(.38, coat.armEdge[0]);
+      edge.addColorStop(.85, coat.armEdge[1]);
+      edge.addColorStop(1, `${coat.armEdge[1]}00`);
       paint.globalAlpha *= innerEdge;
       stroke(paint, edge, 1.35);
     }
@@ -691,6 +981,7 @@ function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = fals
 }
 
 export function createMidnightCat(floatingLayer, {
+  catCoat: initialCatCoat = 'black',
   eyeStyle: initialEyeStyle = 'xiaohei',
   headphoneStyle: initialHeadphoneStyle = 'cream',
 } = {}) {
@@ -700,6 +991,7 @@ export function createMidnightCat(floatingLayer, {
   const paint = canvas.getContext('2d');
   if (!paint) throw new Error('Could not create the 2D cat canvas.');
   floatingLayer.before(canvas);
+  let catCoat = Object.hasOwn(midnightCatCoats, initialCatCoat) ? initialCatCoat : 'black';
   let eyeStyle = Object.hasOwn(midnightEyeStyles, initialEyeStyle) ? initialEyeStyle : 'xiaohei';
   let headphoneStyle = Object.hasOwn(midnightHeadphoneStyles, initialHeadphoneStyle) ? initialHeadphoneStyle : 'cream';
 
@@ -781,6 +1073,9 @@ export function createMidnightCat(floatingLayer, {
     setCrouch(amount) {
       crouch = amount;
       if (amount > .05) tailMotion = null;
+    },
+    setCatCoat(coat) {
+      if (Object.hasOwn(midnightCatCoats, coat)) catCoat = coat;
     },
     setEyeStyle(style) {
       if (Object.hasOwn(midnightEyeStyles, style)) eyeStyle = style;
@@ -991,42 +1286,48 @@ export function createMidnightCat(floatingLayer, {
         paint.scale(bodyWidth, bodyHeight);
         paint.translate(0, -4 * crouch);
       };
+      const coat = catCoatPalettes[catCoat] ?? catCoatPalettes.black;
       // Lay down the outline before filling the overlapping shapes.
       paint.save();
       applyBodyTransform();
       drawTailChain(paint, tailPoints, ivory, tailWidth + silhouetteWidth);
+      if (coat.rim) drawTailChain(paint, tailPoints, coat.rim, tailWidth + 2.0);
       stroke(paint, ivory, silhouetteWidth, activeBody);
+      if (coat.rim) stroke(paint, coat.rim, 2.0, activeBody);
       paint.restore();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, true);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, true, catCoat);
       }
       const closed = Math.max(face.closed, face.crying);
       const eyeOffset = resolveFaceGaze(gaze, reaction.tension, closed);
       const whiskerTwitch = .55 * Math.sin(elapsed * 2.4) + bobPos * .85 + reaction.tension * .9;
       paint.save();
       positionHead(paint, face);
-      drawWhiskers(paint, ivory, 5.2, whiskerTwitch, eyeOffset.x * .82, eyeOffset.y * .82);
+      drawWhiskers(paint, coat.whiskerHalo, 2.6, whiskerTwitch, eyeOffset.x * .82, eyeOffset.y * .82);
       stroke(paint, ivory, silhouetteWidth, headShape);
+      if (coat.rim) stroke(paint, coat.rim, 2.0, headShape);
       paint.restore();
       paint.save();
       applyBodyTransform();
-      drawTailChain(paint, tailPoints, black, tailWidth);
-      paint.fillStyle = black;
+      drawTailChain(paint, tailPoints, coat.tail, tailWidth);
+      drawTailMarkings(paint, tailPoints, catCoat);
+      paint.fillStyle = coat.body;
       paint.fill(activeBody);
+      drawBodyMarkings(paint, activeBody, catCoat, crouch);
       const haunchAlpha = MathUtils.smoothstep(crouch, .35, .95) * .68;
       if (haunchAlpha > .01) {
         paint.globalAlpha = haunchAlpha;
         paint.beginPath();
         paint.moveTo(22, -33);
         paint.bezierCurveTo(45, -35, 55, -16, 44, 2);
-        stroke(paint, '#575450', 1.5);
+        stroke(paint, coat.haunch, 1.5);
         paint.globalAlpha = 1;
       }
       paint.restore();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, false, catCoat);
       }
-      drawHead(paint, gaze, reaction, face, whiskerTwitch, eyeStyle, elapsed, musicBlend, headphoneStyle);
+      drawHead(paint, gaze, reaction, face, whiskerTwitch, eyeStyle, elapsed, musicBlend, headphoneStyle, catCoat);
       if (tailImpacts.length) {
         drawTailImpacts(paint, tailImpacts, elapsed);
       }

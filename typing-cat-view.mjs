@@ -5,8 +5,8 @@ import {
   PlaneGeometry, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMidnightCat, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
-export { midnightEyeStyles, midnightHeadphoneStyles };
+import { createMidnightCat, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
+export { midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles };
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createMeowPlayer } from './cat-meow.mjs';
@@ -50,6 +50,86 @@ const angerBurstSpacing = .52;
 const angerBurstCycle = 1.04;
 const defaultFloatingKeyAnchor = [.015, .265, .252];
 
+export const midnightKeyboardStyles = {
+  cream: {
+    label: '奶白复古',
+    plateColor: '#363440',
+    insertColor: '#24232b',
+    rows: [
+      ['#eae7df', '#34323b'], ['#faf5e9', '#34323b'], ['#eae7df', '#34323b'],
+      ['#faf5e9', '#34323b'], ['#eae7df', '#34323b'],
+    ],
+    accents: { Tab: '#eeb751', ArrowRight: '#eeb751' },
+    activeColor: '#e6b95c',
+    mouse: { shell: '#f2eee6', trim: '#525862', recess: '#5c636d', wheel: '#817252', tread: '#a99a75' },
+  },
+  obsidian: {
+    label: '暗夜黑金',
+    plateColor: '#1b1d24',
+    insertColor: '#111318',
+    rows: [
+      ['#2d303a', '#f2ece1'], ['#252831', '#f2ece1'], ['#2b2e38', '#f2ece1'],
+      ['#252831', '#f2ece1'], ['#20232b', '#f2ece1'],
+    ],
+    accents: { Tab: '#e4b358', Enter: '#e4b358', ArrowRight: '#e4b358' },
+    accentLabel: { Tab: '#221d16', Enter: '#221d16', ArrowRight: '#221d16' },
+    activeColor: '#e9bd67',
+    mouse: { shell: '#262932', trim: '#14161c', recess: '#181a21', wheel: '#cfa048', tread: '#e8c16f' },
+  },
+  sakura: {
+    label: '樱粉甜心',
+    plateColor: '#e7b9c8',
+    insertColor: '#cf9cae',
+    rows: [
+      ['#fbd6e2', '#6b3a4c'], ['#fff7fa', '#6b3a4c'], ['#fde4ec', '#6b3a4c'],
+      ['#fff7fa', '#6b3a4c'], ['#fbd6e2', '#6b3a4c'],
+    ],
+    accents: { Tab: '#f087ab', Enter: '#f087ab', Space: '#fde4ec', ArrowRight: '#f087ab' },
+    accentLabel: { Tab: '#fffafc', Enter: '#fffafc', ArrowRight: '#fffafc' },
+    activeColor: '#f295b5',
+    mouse: { shell: '#fde6ee', trim: '#c98da2', recess: '#d7a1b4', wheel: '#e57ea1', tread: '#f7aec7' },
+  },
+  matcha: {
+    label: '抹茶奶绿',
+    plateColor: '#4c5c4a',
+    insertColor: '#374436',
+    rows: [
+      ['#d6e5ca', '#30402f'], ['#f6f4ea', '#30402f'], ['#e3edd8', '#30402f'],
+      ['#f6f4ea', '#30402f'], ['#d6e5ca', '#30402f'],
+    ],
+    accents: { Tab: '#84ad71', Enter: '#84ad71', ArrowRight: '#84ad71' },
+    accentLabel: { Tab: '#f7fbf2', Enter: '#f7fbf2', ArrowRight: '#f7fbf2' },
+    activeColor: '#98c284',
+    mouse: { shell: '#e6efdd', trim: '#566954', recess: '#6b7e68', wheel: '#749c62', tread: '#9fc48d' },
+  },
+  retro: {
+    label: '经典灰白',
+    plateColor: '#9e978b',
+    insertColor: '#767065',
+    rows: [
+      ['#d7d1c5', '#343230'], ['#efeae0', '#343230'], ['#eae5da', '#343230'],
+      ['#efeae0', '#343230'], ['#d7d1c5', '#343230'],
+    ],
+    accents: { Backquote: '#d46555', Tab: '#639a96', Enter: '#d46555', ArrowRight: '#639a96' },
+    accentLabel: { Backquote: '#fff8f5', Tab: '#f4fbfa', Enter: '#fff8f5', ArrowRight: '#f4fbfa' },
+    activeColor: '#d97868',
+    mouse: { shell: '#e5dfd3', trim: '#7c766b', recess: '#8f887c', wheel: '#c95d4d', tread: '#de8374' },
+  },
+  sky: {
+    label: '海盐晴蓝',
+    plateColor: '#506480',
+    insertColor: '#3a4a61',
+    rows: [
+      ['#cde0f6', '#2b3b54'], ['#f6faff', '#2b3b54'], ['#dcebfa', '#2b3b54'],
+      ['#f6faff', '#2b3b54'], ['#cde0f6', '#2b3b54'],
+    ],
+    accents: { Tab: '#6f9ce6', Enter: '#6f9ce6', ArrowRight: '#6f9ce6' },
+    accentLabel: { Tab: '#f6faff', Enter: '#f6faff', ArrowRight: '#f6faff' },
+    activeColor: '#7ca8ef',
+    mouse: { shell: '#e3effc', trim: '#576d8c', recess: '#6c83a3', wheel: '#6492de', tread: '#93b8f0' },
+  },
+};
+
 export const typingCatSchemes = {
   midnight: {
     label: '夜猫 · 奶白键盘',
@@ -87,9 +167,9 @@ function makeLabel(text, width, color, code) {
   ctx.font = `700 ${long ? 42 : 53}px system-ui`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = color;
+  ctx.fillStyle = '#ffffff';
   if (keyIcons[code]) {
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = '#ffffff';
     paintKeyIcon(ctx, code, 96, 46, 70);
   } else {
     ctx.fillText(String(text), 96, 46, 176);
@@ -98,7 +178,7 @@ function makeLabel(text, width, color, code) {
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = 8;
   const label = new Mesh(new PlaneGeometry(width * .85, .020),
-    new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
+    new MeshBasicMaterial({ color, map: texture, transparent: true, depthWrite: false, toneMapped: false }));
   label.rotation.set(-Math.PI / 2, 0, Math.PI);
   label.position.y = capHeight / 2 + .0012;
   return label;
@@ -143,14 +223,32 @@ function createKeyboard({ plateColor = '#24272d', insertColor = '#17191e', plate
       const tint = new Color(accents?.get(code) ?? keyColor);
       const cap = new Mesh(shapes.get(size), new MeshStandardMaterial({ color: tint, roughness: .59 }));
       cap.position.set(column - size * unit / 2, capY, z);
-      if (label !== '') cap.add(makeLabel(label, width, labelColor, code));
+      const labelMesh = label !== '' ? makeLabel(label, width, labelColor, code) : null;
+      if (labelMesh) cap.add(labelMesh);
       cap.userData.keyCode = code;
-      keys.set(code, { cap, label: code === 'Space' ? '空格' : label, tint, started: -Infinity, releaseAt: -Infinity });
+      keys.set(code, {
+        cap, labelMesh, rowIndex, label: code === 'Space' ? '空格' : label,
+        tint, started: -Infinity, releaseAt: -Infinity,
+      });
       board.add(cap);
       column -= size * unit;
     }
   });
-  return { board, keys };
+  function applyStyle(styleKey) {
+    const theme = midnightKeyboardStyles[styleKey] ?? midnightKeyboardStyles.cream;
+    plate.material.color.set(theme.plateColor);
+    insert.material.color.set(theme.insertColor);
+    for (const [code, key] of keys) {
+      const [rowCap, rowLabel] = theme.rows[key.rowIndex];
+      key.tint.set(theme.accents?.[code] ?? rowCap);
+      key.cap.material.color.copy(key.tint);
+      if (key.labelMesh) {
+        key.labelMesh.material.color.set(theme.accentLabel?.[code] ?? rowLabel);
+      }
+    }
+    return theme.activeColor;
+  }
+  return { board, keys, applyStyle };
 }
 
 // Cross-sections from palm end to nose, given as z, half width, side height and crown height.
@@ -282,7 +380,19 @@ function createMouse({ x = mouseHomeX, scale = [1, 1.42, 1], shell = '#e2e4e8',
   body.add(wheel);
   body.scale.fromArray(scale);
   body.position.set(x, 0, mouseHomeZ);
-  return { body, buttons, sectionAt };
+  function applyStyle(theme) {
+    if (!theme) return;
+    ivory.color.set(theme.shell);
+    trim.color.set(theme.trim);
+    recess.color.set(theme.recess);
+    rubber.color.set(theme.wheel);
+    ribs.color.set(theme.tread);
+    for (const button of buttons.values()) {
+      button.tint.set(theme.shell);
+      button.mesh.material.color.copy(button.tint);
+    }
+  }
+  return { body, buttons, sectionAt, applyStyle };
 }
 
 function makeShadow(width, depth, x, z, opacity) {
@@ -304,7 +414,8 @@ function makeShadow(width, depth, x, z, opacity) {
 }
 
 export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnight',
-  eyeStyle = 'xiaohei', headphoneStyle = 'cream', rewardsEnabled = true, musicMode: initialMusicMode = false } = {}) {
+  catCoat = 'black', eyeStyle = 'xiaohei', headphoneStyle = 'cream', keyboardStyle = 'cream',
+  rewardsEnabled = true, musicMode: initialMusicMode = false } = {}) {
   const preset = typingCatSchemes[scheme] ?? typingCatSchemes.midnight;
   const status = stage.querySelector('#status');
   const floatingLayer = stage.querySelector('#floating');
@@ -349,7 +460,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   };
   signal?.addEventListener('abort', cleanup, { once: true });
   try {
-    cat = preset.createCat(floatingLayer, { eyeStyle, headphoneStyle });
+    cat = preset.createCat(floatingLayer, { catCoat, eyeStyle, headphoneStyle });
   } catch (error) {
     if (!signal?.aborted) cleanup();
     throw error;
@@ -360,7 +471,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     disposeScene();
     return;
   }
-  const { board, keys } = createKeyboard(preset.keyboard);
+  const { board, keys, applyStyle: applyKeyboardStyle } = createKeyboard(preset.keyboard);
   const mouse = createMouse(preset.mouse);
   const mouseX = mouse.body.position.x;
   const mousePaw = mouseX < 0 ? 'left' : 'right';
@@ -399,7 +510,8 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   const raycast = new Raycaster();
   const hitTargets = [...keys.values()].map(key => key.cap)
     .concat([...mouse.buttons.values()].map(button => button.mesh));
-  const activeColor = new Color(preset.activeColor ?? '#a4b1cc');
+  const activeColor = new Color(applyKeyboardStyle(keyboardStyle) ?? preset.activeColor ?? '#a4b1cc');
+  mouse.applyStyle(midnightKeyboardStyles[keyboardStyle]?.mouse);
   const floaters = [];
   const keyRow = document.createElement('div');
   keyRow.className = 'key-row';
@@ -1127,11 +1239,20 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       stopPetting();
       releaseWindowMouse();
     },
+    setCatCoat(coat) {
+      cat.setCatCoat?.(coat);
+    },
     setEyeStyle(style) {
       cat.setEyeStyle?.(style);
     },
     setHeadphoneStyle(style) {
       cat.setHeadphoneStyle?.(style);
+    },
+    setKeyboardStyle(style) {
+      if (Object.hasOwn(midnightKeyboardStyles, style)) {
+        activeColor.set(applyKeyboardStyle(style));
+        mouse.applyStyle(midnightKeyboardStyles[style].mouse);
+      }
     },
     setMusicMode(enabled) {
       musicMode = Boolean(enabled);

@@ -5,7 +5,7 @@ import { LogicalSize } from '@tauri-apps/api/dpi';
 import { emit, listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconBrandGithub, IconChevronRight, IconCircleCheck, IconDownload, IconExternalLink, IconHeadphones, IconMinus, IconPin, IconPinnedOff, IconPower, IconRefresh, IconX } from '@tabler/icons-react';
-import { midnightEyeStyles, midnightHeadphoneStyles, mountTypingCat } from '../../typing-cat-view.mjs';
+import { midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightKeyboardStyles, mountTypingCat } from '../../typing-cat-view.mjs';
 import './styles.css';
 import './rewards.css';
 
@@ -25,10 +25,14 @@ const rewardsPreference = 'typing-cat.rewards-enabled';
 const musicPreference = 'typing-cat.music-mode';
 const sizePreference = 'typing-cat.window-scale';
 const opacityPreference = 'typing-cat.window-opacity';
+const catCoatPreference = 'typing-cat.cat-coat';
 const eyeStylePreference = 'typing-cat.eye-style';
 const headphoneStylePreference = 'typing-cat.headphone-style';
+const keyboardStylePreference = 'typing-cat.keyboard-style';
+const catCoatOptions = Object.entries(midnightCatCoats);
 const eyeStyleOptions = Object.entries(midnightEyeStyles);
 const headphoneStyleOptions = Object.entries(midnightHeadphoneStyles);
+const keyboardStyleOptions = Object.entries(midnightKeyboardStyles);
 const loadingStatus = '正在准备猫咪和键盘…';
 const scaleOptions = { min: 50, max: 120, step: 5, initial: 65 };
 const opacityOptions = { min: 20, max: 100, step: 5, initial: 100 };
@@ -53,6 +57,11 @@ function resizeWindow(percent) {
   return nativeWindow.setSize(new LogicalSize(Math.round(540 * percent / 100), Math.round(620 * percent / 100)));
 }
 
+function savedCatCoat() {
+  const saved = localStorage.getItem(catCoatPreference);
+  return Object.hasOwn(midnightCatCoats, saved) ? saved : 'black';
+}
+
 function savedEyeStyle() {
   const saved = localStorage.getItem(eyeStylePreference);
   return Object.hasOwn(midnightEyeStyles, saved) ? saved : 'xiaohei';
@@ -61,6 +70,105 @@ function savedEyeStyle() {
 function savedHeadphoneStyle() {
   const saved = localStorage.getItem(headphoneStylePreference);
   return Object.hasOwn(midnightHeadphoneStyles, saved) ? saved : 'cream';
+}
+
+function savedKeyboardStyle() {
+  const saved = localStorage.getItem(keyboardStylePreference);
+  return Object.hasOwn(midnightKeyboardStyles, saved) ? saved : 'cream';
+}
+
+function CatCoatPreview({ coat }) {
+  const clipId = `coat-clip-${coat}`;
+  const headPath = 'M36 44 C26 44 18 43 14 39 C7 34 6 24 11 16 C13 9 16 3 20 2 C23 1 26 7 29 11 C33 10.5 39 10.5 43 11 C46 7 49 1 52 2 C56 3 59 9 61 16 C66 24 65 34 58 39 C54 43 46 44 36 44 Z';
+  const baseFill = {
+    black: '#161615',
+    siamese: '#f2e6d3',
+    tabby: '#b0a69a',
+    ragdoll: '#f8f4ee',
+    orange: '#f3b165',
+    calico: '#f8f4ed',
+  }[coat] ?? '#161615';
+  const rim = coat === 'black' ? '#e6ebf3' : '#584b44';
+  const eyeRim = coat === 'black' || coat === 'siamese' ? 'none' : '#4a3d36';
+  const nose = coat === 'black' || coat === 'siamese' ? '#3a2a23' : '#de929e';
+
+  return (
+    <svg className="wardrobe-preview-svg" viewBox="0 0 72 48" aria-hidden="true">
+      <defs>
+        <clipPath id={clipId}>
+          <path d={headPath} />
+        </clipPath>
+        {coat === 'siamese' && (
+          <radialGradient id="siamese-mask-grad" cx="50%" cy="54%" r="50%">
+            <stop offset="0%" stopColor="#3f2b22" />
+            <stop offset="48%" stopColor="#4d362c" stopOpacity="0.86" />
+            <stop offset="80%" stopColor="#6b4e3f" stopOpacity="0.38" />
+            <stop offset="100%" stopColor="#6b4e3f" stopOpacity="0" />
+          </radialGradient>
+        )}
+      </defs>
+      <path d={headPath} fill={baseFill} stroke={rim} strokeWidth="1.6" />
+      <g clipPath={`url(#${clipId})`}>
+        {coat === 'siamese' && (
+          <>
+            <ellipse cx="18" cy="9" rx="9.5" ry="11.5" fill="#422e25" transform="rotate(-14 18 9)" />
+            <ellipse cx="54" cy="9" rx="9.5" ry="11.5" fill="#422e25" transform="rotate(14 54 9)" />
+            <ellipse cx="36" cy="30" rx="16.5" ry="11.5" fill="url(#siamese-mask-grad)" />
+          </>
+        )}
+        {coat === 'tabby' && (
+          <>
+            <ellipse cx="19" cy="5" rx="6.5" ry="6.5" fill="#443b35" />
+            <ellipse cx="53" cy="5" rx="6.5" ry="6.5" fill="#443b35" />
+            <ellipse cx="19" cy="10" rx="3.5" ry="5.5" fill="#e0b2ae" transform="rotate(-12 19 10)" />
+            <ellipse cx="53" cy="10" rx="3.5" ry="5.5" fill="#e0b2ae" transform="rotate(12 53 10)" />
+            <ellipse cx="36" cy="39" rx="14" ry="8" fill="#f9f5ee" />
+            <path d="M34.5 9 L36 18 L37.5 9 Z M28.5 9 L31.2 16.5 L31.6 9 Z M43.5 9 L40.8 16.5 L40.4 9 Z" fill="#443b35" />
+            <path d="M8 26 L16.5 28 L8 28.8 Z M64 26 L55.5 28 L64 28.8 Z" fill="#443b35" />
+          </>
+        )}
+        {coat === 'ragdoll' && (
+          <>
+            <polygon points="32,8 18,0 7,20 7,33 19,33 28,19" fill="#846e60" />
+            <polygon points="40,8 54,0 65,20 65,33 53,33 44,19" fill="#846e60" />
+            <polygon points="36,13 24,36 48,36" fill="#f8f4ee" />
+            <ellipse cx="19" cy="10" rx="3.2" ry="5" fill="#e0bab8" transform="rotate(-12 19 10)" />
+            <ellipse cx="53" cy="10" rx="3.2" ry="5" fill="#e0bab8" transform="rotate(12 53 10)" />
+          </>
+        )}
+        {coat === 'orange' && (
+          <>
+            <ellipse cx="19" cy="5" rx="6.5" ry="6.5" fill="#de8a3e" />
+            <ellipse cx="53" cy="5" rx="6.5" ry="6.5" fill="#de8a3e" />
+            <ellipse cx="19" cy="10" rx="3.5" ry="5.5" fill="#f8c6ba" transform="rotate(-12 19 10)" />
+            <ellipse cx="53" cy="10" rx="3.5" ry="5.5" fill="#f8c6ba" transform="rotate(12 53 10)" />
+            <ellipse cx="36" cy="39.5" rx="19" ry="9" fill="#fff8ed" />
+            <path d="M34.5 9 L36 18 L37.5 9 Z M28.5 9 L31.2 16.5 L31.6 9 Z M43.5 9 L40.8 16.5 L40.4 9 Z" fill="#ce742c" />
+            <path d="M8 26 L16.5 28 L8 28.8 Z M64 26 L55.5 28 L64 28.8 Z" fill="#ce742c" />
+          </>
+        )}
+        {coat === 'calico' && (
+          <>
+            <ellipse cx="19" cy="15" rx="15" ry="16" fill="#e68a42" transform="rotate(-10 19 15)" />
+            <ellipse cx="54" cy="16" rx="14" ry="16" fill="#2c2a2c" transform="rotate(10 54 16)" />
+            <ellipse cx="19" cy="10" rx="3.3" ry="5.2" fill="#f4b8ae" transform="rotate(-12 19 10)" />
+            <ellipse cx="53" cy="10" rx="3.3" ry="5.2" fill="#d6a2a6" transform="rotate(12 53 10)" />
+          </>
+        )}
+      </g>
+      {[-1, 1].map(side => {
+        const cx = 36 + side * 10.5;
+        return (
+          <g key={side}>
+            <circle cx={cx} cy="27" r="5.6" fill="#fbf8ee" stroke={eyeRim} strokeWidth="1" />
+            <circle cx={cx} cy="27" r="4.0" fill="#161615" />
+            <circle cx={cx + side * 1.4} cy="25.8" r="1.15" fill="#ffe078" />
+          </g>
+        );
+      })}
+      <ellipse cx="36" cy="34.5" rx="2.0" ry="1.0" fill={nose} />
+    </svg>
+  );
 }
 
 function EyePreview({ style }) {
@@ -169,7 +277,39 @@ function HeadphonePreview({ style }) {
   );
 }
 
-function WardrobePanel({ eyeStyle, headphoneStyle, musicMode, onEyeStyle, onHeadphoneStyle, onToggleMusic, onClose }) {
+function KeyboardPreview({ style }) {
+  const theme = midnightKeyboardStyles[style] ?? midnightKeyboardStyles.cream;
+  const row0 = theme.rows[0][0];
+  const row1 = theme.rows[1][0];
+  const accentA = theme.accents?.Tab ?? theme.activeColor;
+  const accentB = theme.accents?.Enter ?? theme.accents?.ArrowRight ?? accentA;
+  return (
+    <svg className="wardrobe-preview-svg" viewBox="0 0 72 44" aria-hidden="true">
+      <rect x="4" y="9" width="64" height="27" rx="5.5" fill={theme.plateColor} />
+      <rect x="7" y="12" width="58" height="21" rx="3.2" fill={theme.insertColor} />
+      {/* Top row */}
+      <rect x="9" y="14" width="8.5" height="4.8" rx="1.3" fill={accentA} />
+      {[19, 26.5, 34, 41.5, 49].map(x => (
+        <rect key={x} x={x} y="14" width="6.2" height="4.8" rx="1.3" fill={row0} />
+      ))}
+      <rect x="56.5" y="14" width="6.5" height="4.8" rx="1.3" fill={row0} />
+      {/* Middle row */}
+      <rect x="9" y="20.2" width="6.5" height="4.8" rx="1.3" fill={row1} />
+      {[16.8, 24.3, 31.8, 39.3, 46.8].map(x => (
+        <rect key={x} x={x} y="20.2" width="6.2" height="4.8" rx="1.3" fill={row1} />
+      ))}
+      <rect x="54.3" y="20.2" width="8.7" height="4.8" rx="1.3" fill={accentB} />
+      {/* Bottom row with spacebar */}
+      <rect x="9" y="26.4" width="8.5" height="4.8" rx="1.3" fill={row0} />
+      <rect x="19" y="26.4" width="28.5" height="4.8" rx="1.3" fill={theme.accents?.Space ?? row1} />
+      <rect x="49" y="26.4" width="6.2" height="4.8" rx="1.3" fill={row0} />
+      <rect x="56.5" y="26.4" width="6.5" height="4.8" rx="1.3" fill={accentA} />
+    </svg>
+  );
+}
+
+function WardrobePanel({ catCoat, eyeStyle, headphoneStyle, keyboardStyle, musicMode,
+  onCatCoat, onEyeStyle, onHeadphoneStyle, onKeyboardStyle, onToggleMusic, onClose }) {
   return (
     <section className="window-menu wardrobe-menu" role="dialog" aria-label="装扮">
       <header className="menu-header" data-tauri-drag-region>
@@ -180,38 +320,70 @@ function WardrobePanel({ eyeStyle, headphoneStyle, musicMode, onEyeStyle, onHead
           </button>
         </div>
       </header>
-      <div className="wardrobe-section">
-        <div className="wardrobe-section-head">
-          <h2>眼睛</h2>
-          <span className="wardrobe-current">{midnightEyeStyles[eyeStyle]?.label}</span>
+      <div className="wardrobe-body">
+        <div className="wardrobe-section">
+          <div className="wardrobe-section-head">
+            <h2>猫咪</h2>
+            <span className="wardrobe-current">{midnightCatCoats[catCoat]?.label}</span>
+          </div>
+          <div className="wardrobe-grid" role="radiogroup" aria-label="猫咪品种">
+            {catCoatOptions.map(([key, { label }]) => (
+              <button key={key} type="button" role="radio" aria-checked={catCoat === key}
+                className="wardrobe-card" onClick={() => onCatCoat(key)}>
+                <CatCoatPreview coat={key} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="wardrobe-grid" role="radiogroup" aria-label="眼睛样式">
-          {eyeStyleOptions.map(([key, { label }]) => (
-            <button key={key} type="button" role="radio" aria-checked={eyeStyle === key}
-              className="wardrobe-card" onClick={() => onEyeStyle(key)}>
-              <EyePreview style={key} />
-              <span>{label}</span>
+        <div className="wardrobe-section">
+          <div className="wardrobe-section-head">
+            <h2>眼睛</h2>
+            <span className="wardrobe-current">{midnightEyeStyles[eyeStyle]?.label}</span>
+          </div>
+          <div className="wardrobe-grid" role="radiogroup" aria-label="眼睛样式">
+            {eyeStyleOptions.map(([key, { label }]) => (
+              <button key={key} type="button" role="radio" aria-checked={eyeStyle === key}
+                className="wardrobe-card" onClick={() => onEyeStyle(key)}>
+                <EyePreview style={key} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="wardrobe-section">
+          <div className="wardrobe-section-head">
+            <h2>耳机</h2>
+            <button type="button" className="wardrobe-music-pill" data-active={musicMode}
+              onClick={onToggleMusic} title={musicMode ? '点击关闭听歌模式' : '点击开启听歌模式并佩戴耳机'}>
+              <IconHeadphones size={12} stroke={2} />
+              <span>{musicMode ? '听歌佩戴中' : '点此开启听歌'}</span>
             </button>
-          ))}
+          </div>
+          <div className="wardrobe-grid" role="radiogroup" aria-label="耳机样式">
+            {headphoneStyleOptions.map(([key, { label }]) => (
+              <button key={key} type="button" role="radio" aria-checked={headphoneStyle === key}
+                className="wardrobe-card" onClick={() => onHeadphoneStyle(key)}>
+                <HeadphonePreview style={key} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="wardrobe-section">
-        <div className="wardrobe-section-head">
-          <h2>耳机</h2>
-          <button type="button" className="wardrobe-music-pill" data-active={musicMode}
-            onClick={onToggleMusic} title={musicMode ? '点击关闭听歌模式' : '点击开启听歌模式并佩戴耳机'}>
-            <IconHeadphones size={12} stroke={2} />
-            <span>{musicMode ? '听歌佩戴中' : '点此开启听歌'}</span>
-          </button>
-        </div>
-        <div className="wardrobe-grid" role="radiogroup" aria-label="耳机样式">
-          {headphoneStyleOptions.map(([key, { label }]) => (
-            <button key={key} type="button" role="radio" aria-checked={headphoneStyle === key}
-              className="wardrobe-card" onClick={() => onHeadphoneStyle(key)}>
-              <HeadphonePreview style={key} />
-              <span>{label}</span>
-            </button>
-          ))}
+        <div className="wardrobe-section">
+          <div className="wardrobe-section-head">
+            <h2>键盘与鼠标</h2>
+            <span className="wardrobe-current">{midnightKeyboardStyles[keyboardStyle]?.label}</span>
+          </div>
+          <div className="wardrobe-grid" role="radiogroup" aria-label="键盘与鼠标样式">
+            {keyboardStyleOptions.map(([key, { label }]) => (
+              <button key={key} type="button" role="radio" aria-checked={keyboardStyle === key}
+                className="wardrobe-card" onClick={() => onKeyboardStyle(key)}>
+                <KeyboardPreview style={key} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -386,7 +558,7 @@ function AboutAndUpdates() {
 }
 
 function WindowMenu({ pinned, pinBusy, background, backgroundBusy, rewardsEnabled, musicMode, error, scale, opacity,
-  eyeStyle, headphoneStyle, standalone = false, onTogglePin, onMinimize, onClose, onScale, onOpacity,
+  catCoat, eyeStyle, headphoneStyle, standalone = false, onTogglePin, onMinimize, onClose, onScale, onOpacity,
   onToggleBackground, onToggleRewards, onToggleMusic, onOpenWardrobe, onQuit }) {
   const [draftScale, setDraftScale] = useState(scale);
   const [scaleBusy, setScaleBusy] = useState(false);
@@ -465,10 +637,10 @@ function WindowMenu({ pinned, pinBusy, background, backgroundBusy, rewardsEnable
           <span className="switch-track" aria-hidden="true" />
         </button>
         <button type="button" className="switch-row nav-row" onClick={onOpenWardrobe}
-          title="打开装扮弹窗，自定义眼睛和耳机样式">
+          title="打开装扮弹窗，自定义猫咪、眼睛和耳机样式">
           <span>装扮</span>
           <span className="nav-summary">
-            <span>{midnightEyeStyles[eyeStyle]?.label} · {midnightHeadphoneStyles[headphoneStyle]?.label}</span>
+            <span>{midnightCatCoats[catCoat]?.label} · {midnightEyeStyles[eyeStyle]?.label}</span>
             <IconChevronRight size={15} stroke={1.9} aria-hidden="true" />
           </span>
         </button>
@@ -504,6 +676,7 @@ function SettingsApp() {
     musicMode: localStorage.getItem(musicPreference) === 'on',
     scale: savedScale(),
     opacity: savedOpacity(),
+    catCoat: savedCatCoat(),
     eyeStyle: savedEyeStyle(),
     headphoneStyle: savedHeadphoneStyle(),
     error: '',
@@ -544,6 +717,7 @@ function SettingsApp() {
         error={state.error}
         scale={state.scale}
         opacity={state.opacity}
+        catCoat={state.catCoat}
         eyeStyle={state.eyeStyle}
         headphoneStyle={state.headphoneStyle}
         onTogglePin={() => dispatch('togglePin')}
@@ -570,8 +744,10 @@ function SettingsApp() {
 
 function WardrobeApp() {
   const [state, setState] = useState(() => ({
+    catCoat: savedCatCoat(),
     eyeStyle: savedEyeStyle(),
     headphoneStyle: savedHeadphoneStyle(),
+    keyboardStyle: savedKeyboardStyle(),
     musicMode: localStorage.getItem(musicPreference) === 'on',
   }));
 
@@ -580,8 +756,10 @@ function WardrobeApp() {
       if (payload && typeof payload === 'object') {
         setState(prev => ({
           ...prev,
+          ...(payload.catCoat ? { catCoat: payload.catCoat } : {}),
           ...(payload.eyeStyle ? { eyeStyle: payload.eyeStyle } : {}),
           ...(payload.headphoneStyle ? { headphoneStyle: payload.headphoneStyle } : {}),
+          ...(payload.keyboardStyle ? { keyboardStyle: payload.keyboardStyle } : {}),
           ...(typeof payload.musicMode === 'boolean' ? { musicMode: payload.musicMode } : {}),
         }));
       }
@@ -605,9 +783,15 @@ function WardrobeApp() {
   return (
     <div className="settings-shell">
       <WardrobePanel
+        catCoat={state.catCoat}
         eyeStyle={state.eyeStyle}
         headphoneStyle={state.headphoneStyle}
+        keyboardStyle={state.keyboardStyle}
         musicMode={state.musicMode}
+        onCatCoat={next => {
+          setState(prev => ({ ...prev, catCoat: next }));
+          dispatch('catCoat', next);
+        }}
         onEyeStyle={next => {
           setState(prev => ({ ...prev, eyeStyle: next }));
           dispatch('eyeStyle', next);
@@ -615,6 +799,10 @@ function WardrobeApp() {
         onHeadphoneStyle={next => {
           setState(prev => ({ ...prev, headphoneStyle: next }));
           dispatch('headphoneStyle', next);
+        }}
+        onKeyboardStyle={next => {
+          setState(prev => ({ ...prev, keyboardStyle: next }));
+          dispatch('keyboardStyle', next);
         }}
         onToggleMusic={() => {
           setState(prev => ({ ...prev, musicMode: !prev.musicMode }));
@@ -646,10 +834,14 @@ function App() {
   const musicModeRef = useRef(musicMode);
   const [scale, setScale] = useState(savedScale);
   const [opacity, setOpacity] = useState(savedOpacity);
+  const [catCoat, setCatCoat] = useState(savedCatCoat);
+  const catCoatRef = useRef(catCoat);
   const [eyeStyle, setEyeStyle] = useState(savedEyeStyle);
   const eyeStyleRef = useRef(eyeStyle);
   const [headphoneStyle, setHeadphoneStyle] = useState(savedHeadphoneStyle);
   const headphoneStyleRef = useRef(headphoneStyle);
+  const [keyboardStyle, setKeyboardStyle] = useState(savedKeyboardStyle);
+  const keyboardStyleRef = useRef(keyboardStyle);
   const reportWindowError = useRef(error => {
     console.error(error);
     setWindowError('窗口操作失败');
@@ -667,15 +859,17 @@ function App() {
       musicMode,
       scale,
       opacity,
+      catCoat,
       eyeStyle,
       headphoneStyle,
+      keyboardStyle,
       error: windowError,
     }).catch(() => {});
   };
 
   useEffect(() => {
     publishSettingsState.current();
-  }, [pinned, pinBusy, background, backgroundBusy, rewardsEnabled, musicMode, scale, opacity, eyeStyle, headphoneStyle, windowError]);
+  }, [pinned, pinBusy, background, backgroundBusy, rewardsEnabled, musicMode, scale, opacity, catCoat, eyeStyle, headphoneStyle, keyboardStyle, windowError]);
 
   useEffect(() => {
     if (!nativeWindow) return;
@@ -693,13 +887,16 @@ function App() {
     const abort = new AbortController();
     const stage = target.current;
     mountTypingCat(stage, { signal: abort.signal, scheme: 'midnight',
-      eyeStyle: eyeStyleRef.current, headphoneStyle: headphoneStyleRef.current,
+      catCoat: catCoatRef.current, eyeStyle: eyeStyleRef.current,
+      headphoneStyle: headphoneStyleRef.current, keyboardStyle: keyboardStyleRef.current,
       rewardsEnabled: rewardsEnabledRef.current,
       musicMode: musicModeRef.current, onStatus: setStatus }).then(controls => {
       if (!abort.signal.aborted) {
         sceneControls.current = controls;
+        controls.setCatCoat(catCoatRef.current);
         controls.setEyeStyle(eyeStyleRef.current);
         controls.setHeadphoneStyle(headphoneStyleRef.current);
+        controls.setKeyboardStyle(keyboardStyleRef.current);
         controls.setRewardsEnabled(rewardsEnabledRef.current);
         controls.setMusicMode(musicModeRef.current);
         if (lastDesktopPointer.current) controls.trackDesktopPointer(...lastDesktopPointer.current);
@@ -739,6 +936,14 @@ function App() {
     nativeWindow.minimize().catch(reportWindowError);
   }
 
+  function updateCatCoat(next) {
+    if (next === catCoatRef.current || !Object.hasOwn(midnightCatCoats, next)) return;
+    catCoatRef.current = next;
+    setCatCoat(next);
+    sceneControls.current?.setCatCoat(next);
+    localStorage.setItem(catCoatPreference, next);
+  }
+
   function updateEyeStyle(next) {
     if (next === eyeStyleRef.current || !Object.hasOwn(midnightEyeStyles, next)) return;
     eyeStyleRef.current = next;
@@ -753,6 +958,14 @@ function App() {
     setHeadphoneStyle(next);
     sceneControls.current?.setHeadphoneStyle(next);
     localStorage.setItem(headphoneStylePreference, next);
+  }
+
+  function updateKeyboardStyle(next) {
+    if (next === keyboardStyleRef.current || !Object.hasOwn(midnightKeyboardStyles, next)) return;
+    keyboardStyleRef.current = next;
+    setKeyboardStyle(next);
+    sceneControls.current?.setKeyboardStyle(next);
+    localStorage.setItem(keyboardStylePreference, next);
   }
 
   function updateOpacity(next) {
@@ -826,11 +1039,17 @@ function App() {
       case 'toggleMusic':
         toggleMusicMode();
         break;
+      case 'catCoat':
+        updateCatCoat(payload.value);
+        break;
       case 'eyeStyle':
         updateEyeStyle(payload.value);
         break;
       case 'headphoneStyle':
         updateHeadphoneStyle(payload.value);
+        break;
+      case 'keyboardStyle':
+        updateKeyboardStyle(payload.value);
         break;
       case 'scale':
         updateScale(Number(payload.value));
@@ -968,14 +1187,15 @@ function App() {
         rewardsEnabled={rewardsEnabled} onToggleRewards={toggleRewards}
         musicMode={musicMode} onToggleMusic={toggleMusicMode}
         error={windowError} scale={scale} opacity={opacity}
-        eyeStyle={eyeStyle} headphoneStyle={headphoneStyle}
+        catCoat={catCoat} eyeStyle={eyeStyle} headphoneStyle={headphoneStyle}
         onTogglePin={togglePin} onMinimize={minimizeMain} onClose={() => setControlsOpen(false)}
         onScale={updateScale} onOpacity={updateOpacity}
         onOpenWardrobe={() => setWardrobeOpen(true)}
         onToggleBackground={() => updateBackground(!background)} />}
       {!nativeWindow && wardrobeOpen && <WardrobePanel
-        eyeStyle={eyeStyle} headphoneStyle={headphoneStyle} musicMode={musicMode}
-        onEyeStyle={updateEyeStyle} onHeadphoneStyle={updateHeadphoneStyle}
+        catCoat={catCoat} eyeStyle={eyeStyle} headphoneStyle={headphoneStyle} keyboardStyle={keyboardStyle}
+        musicMode={musicMode} onCatCoat={updateCatCoat} onEyeStyle={updateEyeStyle}
+        onHeadphoneStyle={updateHeadphoneStyle} onKeyboardStyle={updateKeyboardStyle}
         onToggleMusic={toggleMusicMode} onClose={() => setWardrobeOpen(false)} />}
       <main className="stage" data-state="loading" ref={target} style={{ opacity: opacity / 100 }}
         onPointerDownCapture={handleStagePointerDown}>

@@ -182,7 +182,7 @@ fn open_wardrobe_window(app: &tauri::AppHandle) -> Result<(), String> {
         .filter(|w| w.is_visible().unwrap_or(false))
         .or_else(|| app.get_webview_window("main"));
     if let Some(anchor_win) = anchor {
-        position_popup_beside(&anchor_win, &wardrobe, 318.0, 496.0);
+        position_popup_beside(&anchor_win, &wardrobe, 318.0, 584.0);
     }
     wardrobe.show().map_err(|e| e.to_string())?;
     wardrobe.set_focus().map_err(|e| e.to_string())?;
