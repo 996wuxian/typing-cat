@@ -9,7 +9,7 @@ import { midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightK
 import './styles.css';
 import './rewards.css';
 
-const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '1.1.2';
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '1.1.3';
 const APP_AUTHOR = '996wuxian';
 const APP_REPOSITORY_LABEL = '996wuxian/typing-cat';
 const APP_REPOSITORY_URL = 'https://github.com/996wuxian/typing-cat';

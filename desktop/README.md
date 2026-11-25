@@ -31,7 +31,7 @@ npm run release
 ```
 
 `npm run release` 把免安装程序放到 `releases/v<版本>/typing-cat.exe`。例如当前版本是
-`releases/v1.1.2/typing-cat.exe`。`src-tauri/target` 是构建目录。
+`releases/v1.1.3/typing-cat.exe`。`src-tauri/target` 是构建目录。
 `npm run release:installer` 还会把 Windows 安装包放进同一个版本目录。
 
 把 `desktop/package.json` 的版本变更推送到 `main` 后，GitHub Actions 的 Release 工作流会构建并发布 Windows 免安装版和 NSIS 安装包。
