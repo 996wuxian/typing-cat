@@ -11,6 +11,9 @@ use tauri::{
 mod background_typing;
 #[cfg(windows)]
 mod desktop_pointer;
+mod updates;
+
+use std::process::Command;
 
 #[tauri::command]
 async fn begin_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
@@ -113,42 +116,47 @@ async fn set_background_typing(app: tauri::AppHandle, enabled: bool) -> Result<(
 }
 
 #[cfg(desktop)]
-fn position_settings_window(main: &WebviewWindow, settings: &WebviewWindow) {
-    let Ok(main_pos) = main.outer_position() else {
+fn position_popup_beside(
+    anchor: &WebviewWindow,
+    popup: &WebviewWindow,
+    fallback_w: f64,
+    fallback_h: f64,
+) {
+    let Ok(anchor_pos) = anchor.outer_position() else {
         return;
     };
-    let Ok(main_size) = main.outer_size() else {
+    let Ok(anchor_size) = anchor.outer_size() else {
         return;
     };
-    let scale = main.scale_factor().unwrap_or(1.0);
-    let settings_size = settings.outer_size().ok();
-    let settings_w = settings_size
+    let scale = anchor.scale_factor().unwrap_or(1.0);
+    let popup_size = popup.outer_size().ok();
+    let popup_w = popup_size
         .map(|s| s.width as i32)
         .filter(|&w| w > 0)
-        .unwrap_or_else(|| (264.0 * scale).round() as i32);
-    let settings_h = settings_size
+        .unwrap_or_else(|| (fallback_w * scale).round() as i32);
+    let popup_h = popup_size
         .map(|s| s.height as i32)
         .filter(|&h| h > 0)
-        .unwrap_or_else(|| (396.0 * scale).round() as i32);
+        .unwrap_or_else(|| (fallback_h * scale).round() as i32);
     let gap = (12.0 * scale).round() as i32;
-    let mut x = main_pos.x + main_size.width as i32 + gap;
-    let mut y = main_pos.y + (8.0 * scale).round() as i32;
+    let mut x = anchor_pos.x + anchor_size.width as i32 + gap;
+    let mut y = anchor_pos.y + (8.0 * scale).round() as i32;
 
-    if let Ok(Some(monitor)) = main.current_monitor() {
+    if let Ok(Some(monitor)) = anchor.current_monitor() {
         let mon_pos = monitor.position();
         let mon_size = monitor.size();
         let min_x = mon_pos.x;
         let min_y = mon_pos.y;
-        let max_x = mon_pos.x + mon_size.width as i32 - settings_w;
-        let max_y = mon_pos.y + mon_size.height as i32 - settings_h;
+        let max_x = mon_pos.x + mon_size.width as i32 - popup_w;
+        let max_y = mon_pos.y + mon_size.height as i32 - popup_h;
         if x > max_x {
-            let left_x = main_pos.x - settings_w - gap;
+            let left_x = anchor_pos.x - popup_w - gap;
             x = if left_x >= min_x { left_x } else { max_x };
         }
         x = x.clamp(min_x, max_x.max(min_x));
         y = y.clamp(min_y, max_y.max(min_y));
     }
-    let _ = settings.set_position(PhysicalPosition::new(x, y));
+    let _ = popup.set_position(PhysicalPosition::new(x, y));
 }
 
 #[cfg(desktop)]
@@ -157,10 +165,27 @@ fn open_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("settings")
         .ok_or_else(|| "Settings window not found".to_string())?;
     if let Some(main) = app.get_webview_window("main") {
-        position_settings_window(&main, &settings);
+        position_popup_beside(&main, &settings, 276.0, 540.0);
     }
     settings.show().map_err(|e| e.to_string())?;
     settings.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(desktop)]
+fn open_wardrobe_window(app: &tauri::AppHandle) -> Result<(), String> {
+    let wardrobe = app
+        .get_webview_window("wardrobe")
+        .ok_or_else(|| "Wardrobe window not found".to_string())?;
+    let anchor = app
+        .get_webview_window("settings")
+        .filter(|w| w.is_visible().unwrap_or(false))
+        .or_else(|| app.get_webview_window("main"));
+    if let Some(anchor_win) = anchor {
+        position_popup_beside(&anchor_win, &wardrobe, 318.0, 496.0);
+    }
+    wardrobe.show().map_err(|e| e.to_string())?;
+    wardrobe.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -200,6 +225,57 @@ async fn hide_settings_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn toggle_wardrobe_window(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        let wardrobe = app
+            .get_webview_window("wardrobe")
+            .ok_or_else(|| "Wardrobe window not found".to_string())?;
+        if wardrobe.is_visible().unwrap_or(false) {
+            wardrobe.hide().map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        open_wardrobe_window(&app)
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn hide_wardrobe_window(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        if let Some(wardrobe) = app.get_webview_window("wardrobe") {
+            let _ = wardrobe.hide();
+        }
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("仅支持打开 http 或 https 链接".into());
+    }
+    #[cfg(windows)]
+    let result = Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", &url])
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open").arg(&url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = Command::new("xdg-open").arg(&url).spawn();
+    result.map(|_| ()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -214,7 +290,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 }
 
 fn main() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().manage(updates::UpdateState::default());
 
     #[cfg(desktop)]
     let builder = builder
@@ -263,10 +339,13 @@ fn main() {
                     if let Some(settings) = window.app_handle().get_webview_window("settings") {
                         let _ = settings.hide();
                     }
+                    if let Some(wardrobe) = window.app_handle().get_webview_window("wardrobe") {
+                        let _ = wardrobe.hide();
+                    }
                     let _ = window.minimize();
                 }
             }
-            "settings" => {
+            "settings" | "wardrobe" => {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -282,6 +361,12 @@ fn main() {
             start_desktop_pointer,
             toggle_settings_window,
             hide_settings_window,
+            toggle_wardrobe_window,
+            hide_wardrobe_window,
+            open_external_url,
+            updates::check_for_updates,
+            updates::download_update,
+            updates::open_update_download_directory,
             quit_app
         ])
         .run(tauri::generate_context!())

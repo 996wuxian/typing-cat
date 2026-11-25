@@ -83,8 +83,8 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
         </div>
       </div>
     </div>
-    <div class="reward-anger" role="meter" aria-label="怒气" aria-valuemin="0" aria-valuemax="100" hidden>
-      <span class="reward-anger-glyph" aria-hidden="true">怒</span><span class="reward-anger-count"></span>
+    <div class="reward-anger" role="meter" aria-label="罢工" aria-valuemin="0" aria-valuemax="100" hidden>
+      <span class="reward-anger-glyph" aria-hidden="true">罢工</span><span class="reward-anger-count"></span>
     </div>
     <div class="fish-ghost" hidden aria-hidden="true">${fishIcon}</div>
     <span class="reward-announcement" role="status"></span>`;
@@ -93,6 +93,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   const count = hud.querySelector('.fish-count');
   const progress = hud.querySelector('.reward-track');
   const anger = hud.querySelector('.reward-anger');
+  const angerGlyph = hud.querySelector('.reward-anger-glyph');
   const angerCount = hud.querySelector('.reward-anger-count');
   const sparks = hud.querySelector('.reward-sparks');
   const hint = hud.querySelector('.fish-drop-hint');
@@ -148,8 +149,12 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     progress.style.setProperty('--reward-amount', value / keysPerFish);
     const percent = Math.floor(state.anger);
     anger.hidden = state.anger < showAngerAt;
-    angerCount.textContent = `${percent}%`;
+    anger.dataset.striking = String(striking);
+    angerGlyph.textContent = striking ? '罢工' : '怒';
+    angerCount.textContent = striking ? '想吃鱼' : `${percent}%`;
+    anger.setAttribute('aria-label', striking ? '罢工' : '怒气');
     anger.setAttribute('aria-valuenow', percent);
+    anger.setAttribute('aria-valuetext', striking ? '想吃鱼' : `${percent}%`);
   }
 
   function updateDrawer() {
@@ -301,6 +306,19 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     positionDrawer(x, y) {
       drawer.style.left = `${x}px`;
       drawer.style.top = `${y}px`;
+    },
+    coolDown(seconds) {
+      if (!enabled || state.anger <= 0 || seconds <= 0) return false;
+      const wasStriking = state.anger >= maxAnger;
+      const prevPercent = Math.floor(state.anger);
+      const wasVisible = state.anger >= showAngerAt;
+      state.anger = Math.max(0, state.anger - 4.5 * seconds);
+      const calmDown = wasStriking && state.anger < maxAnger;
+      if (calmDown || Math.floor(state.anger) !== prevPercent || (wasVisible && state.anger < showAngerAt)) {
+        render();
+        saveSoon();
+      }
+      return calmDown;
     },
     recordKey(time) {
       if (!enabled) return;

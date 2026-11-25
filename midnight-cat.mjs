@@ -14,6 +14,14 @@ export const midnightEyeStyles = {
   lime: { label: '青柠猫瞳' },
   ring: { label: '极简白圈' },
 };
+export const midnightHeadphoneStyles = {
+  cream: { label: '奶白复古' },
+  sony: { label: '曜石降噪' },
+  max: { label: '银月头戴' },
+  marshall: { label: '摇滚经典' },
+  sakura: { label: '樱粉甜心' },
+  retro: { label: '复古橙绵' },
+};
 const flameTongues = [
   { x: -50, y: -20, height: 112, width: 31, lean: -37, phase: .5 },
   { x: -36, y: -31, height: 170, width: 39, lean: -30, phase: 2 },
@@ -121,18 +129,51 @@ function drawFire(paint, amount, time) {
   paint.restore();
 }
 
-const bodyShape = new Path2D();
-bodyShape.moveTo(-25, -130);
-bodyShape.bezierCurveTo(-35, -116, -54, -88, -55, -58);
-bodyShape.bezierCurveTo(-58, -39, -54, -22, -45, -13);
-bodyShape.bezierCurveTo(-53, -5, -50, 3, -40, 3);
-bodyShape.bezierCurveTo(-35, 3, -31, 1, -28, -4);
-bodyShape.bezierCurveTo(-13, -1, 13, -1, 28, -4);
-bodyShape.bezierCurveTo(31, 1, 35, 3, 40, 3);
-bodyShape.bezierCurveTo(50, 3, 53, -5, 45, -13);
-bodyShape.bezierCurveTo(55, -25, 58, -39, 54, -60);
-bodyShape.bezierCurveTo(50, -86, 36, -116, 26, -130);
-bodyShape.closePath();
+const standingBodyStart = [-25, -130];
+const standingBodySegs = [
+  [-35, -116, -54, -88, -55, -58],
+  [-58, -39, -54, -22, -45, -13],
+  [-53, -5, -50, 3, -40, 3],
+  [-35, 3, -31, 1, -28, -4],
+  [-13, -1, 13, -1, 28, -4],
+  [31, 1, 35, 3, 40, 3],
+  [50, 3, 53, -5, 45, -13],
+  [55, -25, 58, -39, 54, -60],
+  [50, -86, 36, -116, 26, -130],
+];
+const lyingBodyStart = [-30, -42];
+const lyingBodySegs = [
+  [-44, -36, -55, -24, -54, -9],
+  [-53, -1, -48, 4, -40, 4],
+  [-33, 4, -24, 4, -14, 4],
+  [-2, 4, 12, 4, 24, 4],
+  [34, 4, 42, 5, 48, 4],
+  [58, 4, 66, 1, 68, -8],
+  [71, -19, 69, -36, 58, -47],
+  [46, -59, 28, -66, 8, -64],
+  [-8, -62, -21, -52, -30, -42],
+];
+
+function createBodyPath(sleep) {
+  const path = new Path2D();
+  path.moveTo(
+    MathUtils.lerp(standingBodyStart[0], lyingBodyStart[0], sleep),
+    MathUtils.lerp(standingBodyStart[1], lyingBodyStart[1], sleep),
+  );
+  for (let i = 0; i < standingBodySegs.length; i++) {
+    const a = standingBodySegs[i];
+    const b = lyingBodySegs[i];
+    path.bezierCurveTo(
+      MathUtils.lerp(a[0], b[0], sleep), MathUtils.lerp(a[1], b[1], sleep),
+      MathUtils.lerp(a[2], b[2], sleep), MathUtils.lerp(a[3], b[3], sleep),
+      MathUtils.lerp(a[4], b[4], sleep), MathUtils.lerp(a[5], b[5], sleep),
+    );
+  }
+  path.closePath();
+  return path;
+}
+
+const bodyShape = createBodyPath(0);
 
 const headShape = new Path2D();
 headShape.moveTo(0, 34);
@@ -149,6 +190,7 @@ headShape.closePath();
 
 const tailLengths = [20, 20, 19, 18, 17];
 const tailRestRel = [.06, -.44, -.56, -.14, .20];
+const tailSleepRel = [.26, .08, -.52, -.78, -.68];
 const tailWindRel = [-.10, -.50, -.58, -.20, .14];
 const tailHitInit = [.41, .73, .83, .71, .39];
 const tailMoods = [
@@ -380,12 +422,13 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
       const pupilRy = (9.2 - .8 * angry) * (1 - .78 * closed);
       ellipse(paint, pupilX, pupilY, pupilRx, pupilRy, black);
       if (closed < .55) {
-        const twinkle = 1 + .1 * Math.sin(elapsed * 4.2 + side);
+        const twinkleAmp = .1 + .08 * face.happy;
+        const twinkle = 1 + twinkleAmp * Math.sin(elapsed * (4.2 + 2.4 * face.happy) + side);
         if (eyeStyle === 'xiaohei') {
           drawSparkle(paint, pupilX + side * 3.0, pupilY - 1.2, 2.7 * twinkle, 0, '#ffe078');
           ellipse(paint, pupilX - side * 2.5, pupilY + 2.7, 1.15, 1.15, ivory);
         } else if (eyeStyle === 'starry') {
-          const twinkleAlt = 1 + .1 * Math.cos(elapsed * 4.6 - side);
+          const twinkleAlt = 1 + twinkleAmp * Math.cos(elapsed * (4.6 + 2.4 * face.happy) - side);
           drawSparkle(paint, pupilX - 2.5, pupilY - 1.7, 3.5 * twinkle, 0, '#ffa3be');
           drawSparkle(paint, pupilX + 3.3, pupilY + 1.8, 2.7 * twinkleAlt, 0, '#ffdc70');
           ellipse(paint, pupilX + 2.7, pupilY - 3.5, 1.65, 1.65, '#ffffff');
@@ -397,14 +440,29 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed) {
       }
     }
     paint.restore();
+    if (face.happy > .02 && face.crying <= .02) {
+      const smileLift = face.happy * (1 - lid);
+      if (smileLift > .02) {
+        paint.save();
+        paint.globalAlpha = smileLift;
+        ellipse(paint, 0, MathUtils.lerp(rh + 9, 13.8, face.happy), rw + 2.4, 8.1, black);
+        paint.restore();
+      }
+    }
   }
 
   if (lid > 0) {
     paint.globalAlpha = lid;
     paint.beginPath();
-    paint.moveTo(-10.7, .8);
-    paint.quadraticCurveTo(0, MathUtils.lerp(7, -3, face.crying), 10.7, .8 + side * face.crying);
-    stroke(paint, ivory, 1.8);
+    if (face.happy > .35 && face.crying <= .02) {
+      paint.moveTo(-10.2, 2.4);
+      paint.quadraticCurveTo(0, -6.2, 10.2, 2.4);
+      stroke(paint, ivory, 2.0);
+    } else {
+      paint.moveTo(-10.7, .8);
+      paint.quadraticCurveTo(0, MathUtils.lerp(7, -3, face.crying), 10.7, .8 + side * face.crying);
+      stroke(paint, ivory, 1.8);
+    }
   }
   if (face.crying > .01) {
     paint.globalAlpha = .75 * face.crying;
@@ -442,7 +500,90 @@ function positionHead(paint, face) {
   paint.rotate(face.angle);
 }
 
-function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed) {
+const headphonePalettes = {
+  cream: { band: '#34323b', pad: '#eab752', shell: '#f5efe2', accent: '#eab752', cushion: '#34323b', shine: '#fff7de' },
+  sony: { band: '#282a30', pad: '#3d4049', shell: '#2d3038', accent: '#d8b87e', cushion: '#1a1b20', shine: '#606674' },
+  max: { band: '#bcc4d0', pad: '#e3e8f0', shell: '#d6dde8', accent: '#9fa9ba', cushion: '#6e7684', shine: '#ffffff' },
+  marshall: { band: '#24201e', pad: '#d4ac58', shell: '#2a2624', accent: '#d4ac58', cushion: '#181614', shine: '#f4d996' },
+  sakura: { band: '#f2a4be', pad: '#ffd6e4', shell: '#ffe9f0', accent: '#f48fb2', cushion: '#d07a98', shine: '#ffffff' },
+  retro: { band: '#aeb7c6', pad: '#eef2f8', shell: '#ff8a3d', accent: '#f06824', cushion: '#c95218', shine: '#ffd1a1' },
+};
+
+function drawRoundedRect(paint, x, y, w, h, r) {
+  paint.beginPath();
+  paint.roundRect(x - w * .5, y - h * .5, w, h, r);
+}
+
+function drawHeadphones(paint, amount, elapsed, style) {
+  if (amount <= .01) return;
+  const pulse = 1 + .042 * Math.pow(Math.abs(Math.sin(elapsed * 5.8)), 1.6) * amount;
+  paint.save();
+  paint.globalAlpha = MathUtils.smoothstep(amount, 0, .45);
+  paint.translate(0, -10 * (1 - amount));
+  paint.scale(.92 + .08 * amount, .92 + .08 * amount);
+
+  const colors = headphonePalettes[style] ?? headphonePalettes.cream;
+  const isRetro = style === 'retro';
+  // Over-head padded band arching cleanly between the cat's ears
+  const bandPath = new Path2D();
+  bandPath.moveTo(-45, -22);
+  bandPath.bezierCurveTo(-43, -44, -20, -48, 0, -48);
+  bandPath.bezierCurveTo(20, -48, 43, -44, 45, -22);
+  stroke(paint, ivory, isRetro ? 7.4 : 9.6, bandPath);
+  stroke(paint, colors.band, isRetro ? 4.2 : 6.2, bandPath);
+
+  const padPath = new Path2D();
+  padPath.moveTo(-23, -43.8);
+  padPath.bezierCurveTo(-12, -48.0, 12, -48.0, 23, -43.8);
+  stroke(paint, colors.pad, isRetro ? 1.8 : 3.8, padPath);
+
+  // Earcups hugging outward along the cat's ear/temple contour
+  for (const side of [-1, 1]) {
+    paint.save();
+    paint.translate(side * 45, -22);
+    paint.scale(pulse, pulse);
+    paint.rotate(-side * .24);
+    if (style === 'marshall') {
+      drawRoundedRect(paint, 0, 0, 16.8, 23.6, 4.4);
+      stroke(paint, ivory, 4.0);
+      drawRoundedRect(paint, -side * 3.0, .6, 10.0, 20.6, 3.0);
+      fillShape(paint, colors.cushion);
+      drawRoundedRect(paint, side * .4, 0, 15.6, 22.0, 4.0);
+      fillShape(paint, colors.shell);
+      drawRoundedRect(paint, side * 1.8, -.3, 9.0, 14.8, 2.4);
+      fillShape(paint, colors.accent);
+      ellipse(paint, side * 1.2, -3.5, 1.2, 2.4, colors.shine);
+    } else if (isRetro) {
+      paint.beginPath();
+      paint.ellipse(0, 0, 8.8, 12.6, 0, 0, Math.PI * 2);
+      stroke(paint, ivory, 4.0);
+      ellipse(paint, -side * 2.6, .3, 5.6, 11.4, colors.cushion);
+      ellipse(paint, side * .4, 0, 8.2, 12.0, colors.shell);
+      ellipse(paint, side * 2.6, 0, 3.8, 6.2, '#434752');
+      ellipse(paint, side * 2.9, 0, 2.2, 3.8, colors.band);
+      ellipse(paint, side * .2, -4.2, 1.5, 2.4, colors.shine);
+    } else {
+      paint.beginPath();
+      paint.ellipse(0, 0, 8.4, 13.0, 0, 0, Math.PI * 2);
+      stroke(paint, ivory, 4.0);
+      ellipse(paint, -side * 3.4, .4, 5.0, 11.4, colors.cushion);
+      ellipse(paint, side * .5, 0, 7.8, 12.2, colors.shell);
+      if (style === 'sony') {
+        paint.beginPath();
+        paint.ellipse(side * 1.6, -.3, 4.4, 7.6, 0, 0, Math.PI * 2);
+        stroke(paint, colors.accent, 1.5);
+        ellipse(paint, side * 1.6, -4.6, 1.1, 1.1, colors.accent);
+      } else {
+        ellipse(paint, side * 1.8, -.3, 4.3, 7.8, colors.accent);
+        ellipse(paint, side * 1.0, -3.0, 1.2, 2.3, colors.shine);
+      }
+    }
+    paint.restore();
+  }
+  paint.restore();
+}
+
+function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicBlend = 0, headphoneStyle = 'cream') {
   paint.save();
   positionHead(paint, face);
   const closed = Math.max(face.closed, face.crying);
@@ -454,12 +595,12 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed) {
   paint.fill(headShape);
 
   for (const side of [-1, 1]) {
+    drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed);
     if (reaction.blush > .01) {
       paint.globalAlpha = reaction.blush * .72;
-      ellipse(paint, side * 30 + featureX * .7, 14 + featureY * .65, 6.5, 3.1, '#ed89a5', side * .08);
+      ellipse(paint, side * 30 + featureX * .7, 14.5 + featureY * .65, 6.2, 2.9, '#ed89a5', side * .08);
       paint.globalAlpha = 1;
     }
-    drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed);
   }
 
   ellipse(paint, .8 + featureX, 13.8 + featureY, 2.8, 1.35, '#34322f', -.1);
@@ -481,16 +622,20 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed) {
     paint.quadraticCurveTo(mx, my - 1.3 * pout, mx + 3.6, my + 1.1 * pout);
     stroke(paint, ivory, 1.8);
   }
+  drawHeadphones(paint, musicBlend, elapsed, headphoneStyle);
   paint.restore();
 }
 
-function drawArm(paint, side, endX, endY, bodyHeight, outline = false) {
+function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = false) {
+  const stand = 1 - crouch;
   const outward = side * endX;
-  const splay = MathUtils.smoothstep(outward, 33, 82);
-  const crossing = MathUtils.smoothstep(-outward, 13, 104);
+  const splay = MathUtils.smoothstep(outward, 33, 82) * stand;
+  const crossing = MathUtils.smoothstep(-outward, 13, 104) * stand;
   const reach = Math.max(splay, crossing);
-  const rootX = side * (32 + 15 * splay - 17 * crossing);
-  const rootY = (-66 + 13 * splay + 29 * crossing) * bodyHeight;
+  const standRootX = side * (32 + 15 * splay - 17 * crossing);
+  const standRootY = (-66 + 13 * splay + 29 * crossing) * bodyHeight;
+  const rootX = MathUtils.lerp(standRootX, side < 0 ? -26 : -14, crouch);
+  const rootY = MathUtils.lerp(standRootY, -18, crouch);
   const dx = endX - rootX;
   const dy = endY - rootY;
   const length = Math.hypot(dx, dy);
@@ -545,7 +690,10 @@ function drawArm(paint, side, endX, endY, bodyHeight, outline = false) {
   paint.restore();
 }
 
-export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = 'xiaohei' } = {}) {
+export function createMidnightCat(floatingLayer, {
+  eyeStyle: initialEyeStyle = 'xiaohei',
+  headphoneStyle: initialHeadphoneStyle = 'cream',
+} = {}) {
   const canvas = document.createElement('canvas');
   canvas.className = 'midnight-cat';
   canvas.setAttribute('aria-hidden', 'true');
@@ -553,6 +701,7 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
   if (!paint) throw new Error('Could not create the 2D cat canvas.');
   floatingLayer.before(canvas);
   let eyeStyle = Object.hasOwn(midnightEyeStyles, initialEyeStyle) ? initialEyeStyle : 'xiaohei';
+  let headphoneStyle = Object.hasOwn(midnightHeadphoneStyles, initialHeadphoneStyle) ? initialHeadphoneStyle : 'cream';
 
   const model = new Group();
   const paws = [-1, 1].map(side => {
@@ -564,8 +713,8 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
   const pad = new Vector3(0, -.050, .043);
   const pointer = new Vector2();
   const gaze = new Vector2();
-  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0 };
-  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0 };
+  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0, happy: 0 };
+  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0, happy: 0 };
   const anchor = new Vector3();
   const ground = new Vector2();
   let scale = 1;
@@ -574,6 +723,8 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
   let elapsed = 0;
   let fire = 0;
   let crouch = 0;
+  let musicMode = false;
+  let musicBlend = 0;
   let bobPos = 0;
   let bobVel = 0;
   let tapEnergy = 0;
@@ -593,6 +744,9 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
   let tailMirror = 1;
   let tailRootY = -34;
   let tailMotion = null;
+  let sleepTailFlickAt = 3.6;
+  let sleepTailFlickEnd = -Infinity;
+  let sleepTailFlickDir = 1;
   const tailImpacts = [];
 
   function projectScreen(object, x, y, z, camera) {
@@ -631,11 +785,23 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
     setEyeStyle(style) {
       if (Object.hasOwn(midnightEyeStyles, style)) eyeStyle = style;
     },
+    setHeadphoneStyle(style) {
+      if (Object.hasOwn(midnightHeadphoneStyles, style)) headphoneStyle = style;
+    },
+    setMusicMode(enabled) {
+      musicMode = Boolean(enabled);
+    },
     onKeyTap(side, heavy = false) {
       bobVel += heavy ? 32 : 28;
       tapEnergy = Math.min(1, tapEnergy + (heavy ? .85 : .55));
       leanTarget = (side === 'left' ? -1 : side === 'right' ? 1 : .65) * (heavy ? 1.25 : 1);
       if (!heavy) tailFlick = MathUtils.clamp(tailFlick + (side === 'left' ? -.13 : .13), -.22, .22);
+    },
+    flickTail() {
+      sleepTailFlickEnd = elapsed + .82;
+      sleepTailFlickAt = sleepTailFlickEnd + 3.4 + Math.random() * 2.6;
+      sleepTailFlickDir = -sleepTailFlickDir;
+      tailFlick = .22 * sleepTailFlickDir;
     },
     tapTail(surface, time, held = false) {
       tailTarget.copy(surface);
@@ -656,30 +822,37 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
       }
     },
     setReaction({ tension = 0, squint = 0, yaw = 0, pitch = 0, roll = 0, blush = 0, mouth = 0,
-      crying = 0, doze = 0 } = {}) {
-      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze });
+      crying = 0, doze = 0, happy = 0 } = {}) {
+      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze, happy });
     },
     update(seconds) {
       elapsed += seconds;
       fire = MathUtils.damp(fire, reaction.tension, reaction.tension > fire ? 10 : 6, seconds);
+      musicBlend = MathUtils.damp(musicBlend, musicMode ? 1 : 0, musicMode ? 9 : 11, seconds);
       bobVel += (-180 * bobPos - 17 * bobVel) * seconds;
       bobPos = MathUtils.clamp(bobPos + bobVel * seconds, -1, 2);
       tapEnergy = MathUtils.damp(tapEnergy, 0, 6.5, seconds);
       tapLean = MathUtils.damp(tapLean, leanTarget * tapEnergy, 16, seconds);
       tailFlick = MathUtils.damp(tailFlick, 0, 11, seconds);
-      tailWag += seconds * (2.3 + 4.8 * tapEnergy + 3.2 * reaction.tension);
-      const pointerX = pointer.x * (1 - reaction.doze);
-      const pointerY = pointer.y * (1 - reaction.doze);
+      tailWag += seconds * (2.3 + 4.8 * tapEnergy + 3.2 * reaction.tension + 2.8 * musicBlend * (1 - crouch));
+      const pointerX = pointer.x * (1 - reaction.doze) * (1 - .7 * reaction.happy);
+      const pointerY = pointer.y * (1 - reaction.doze) * (1 - .7 * reaction.happy);
       const tensionDown = reaction.tension * (1 - reaction.doze);
+      const stand = 1 - crouch;
+      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze;
       gaze.x = MathUtils.damp(gaze.x, pointerX * 8.5, 15, seconds);
       gaze.y = MathUtils.damp(gaze.y, pointerY * -8.5, 15, seconds);
-      face.x = MathUtils.damp(face.x, pointerX * 9.5 + tapLean * 4.2 + reaction.yaw * 16, 12, seconds);
+      face.x = MathUtils.damp(face.x,
+        (pointerX * 9.5 + tapLean * 4.2 + reaction.yaw * 16) * stand - 36 * crouch, 11, seconds);
       face.y = MathUtils.damp(face.y,
-        headRestY + 65 * crouch - pointerY * 6.5 + reaction.pitch * 24 + tensionDown * 8 + bobPos * 4.5, 14, seconds);
+        MathUtils.lerp(headRestY - pointerY * 6.5 + reaction.pitch * 24 + tensionDown * 8 + bobPos * 4.5,
+          -28 + 1.8 * napBreath, crouch), 11, seconds);
       face.angle = MathUtils.damp(face.angle,
-        pointerX * .095 - pointerX * pointerY * .03 + tapLean * .068 + reaction.roll * .85, 12, seconds);
+        (pointerX * .095 - pointerX * pointerY * .03 + tapLean * .068 + reaction.roll * .85) * stand
+          + (-.24 - .018 * napBreath) * crouch, 11, seconds);
       face.closed = MathUtils.damp(face.closed, reaction.squint, 13, seconds);
       face.crying = MathUtils.damp(face.crying, reaction.crying, 12, seconds);
+      face.happy = MathUtils.damp(face.happy, reaction.happy, 11, seconds);
 
       if (!tailMotion && crouch < .1 && elapsed >= nextTailMood) {
         let next = Math.floor(Math.random() * (tailMoods.length - 1));
@@ -688,13 +861,29 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
         const mood = tailMoods[tailMoodIndex];
         nextTailMood = elapsed + mood.min + Math.random() * (mood.max - mood.min);
       }
-      const activeMood = crouch > .25 ? tailMoods[0] : tailMoods[tailMoodIndex];
+      const activeMood = crouch > .25 ? { side: 1, rel: tailSleepRel } : tailMoods[tailMoodIndex];
       const desiredSide = tailMotion ? 1 : activeMood.side;
       tailMirror = MathUtils.damp(tailMirror, desiredSide, tailMotion ? 22 : 5.5, seconds);
-      tailRootY = MathUtils.damp(tailRootY, desiredSide < 0 ? -44 : -34, 8, seconds);
+      tailRootY = MathUtils.damp(tailRootY, MathUtils.lerp(desiredSide < 0 ? -44 : -34, -14, crouch), 8, seconds);
       const moodRel = activeMood.rel;
 
-      const wagAmp = .052 + .062 * tapEnergy + .05 * reaction.tension;
+      if (crouch > .45 && !tailMotion) {
+        if (elapsed >= sleepTailFlickAt) {
+          sleepTailFlickEnd = elapsed + 1.05;
+          sleepTailFlickAt = sleepTailFlickEnd + 3.2 + Math.random() * 2.8;
+          sleepTailFlickDir = -sleepTailFlickDir;
+        }
+      } else if (crouch <= .2) {
+        sleepTailFlickAt = elapsed + 2.8 + Math.random() * 2.2;
+        sleepTailFlickEnd = -Infinity;
+      }
+      const sleepFlickRemaining = sleepTailFlickEnd - elapsed;
+      const sleepFlickPhase = sleepFlickRemaining > 0 ? 1 - sleepFlickRemaining / 1.05 : -1;
+      const sleepFlickWave = sleepFlickPhase >= 0 && sleepFlickPhase <= 1
+        ? Math.sin(Math.PI * sleepFlickPhase) * Math.sin(sleepFlickPhase * Math.PI * 2.2) * sleepTailFlickDir * crouch
+        : 0;
+
+      const wagAmp = (.052 + .062 * tapEnergy + .05 * reaction.tension + .065 * musicBlend) * (1 - .68 * crouch);
       const steps = Math.max(1, Math.ceil(seconds / .008));
       const dt = seconds / steps;
       const stepStart = elapsed - seconds;
@@ -723,8 +912,9 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
               damp = tailDUp[j];
             }
           } else {
+            const sleepKick = sleepFlickWave * (j === 0 ? .10 : j === 1 ? .18 : .30);
             target = moodRel[j] + wagAmp * (.26 + .16 * j) * Math.sin(tailWag - j * .55)
-              + (j === 0 ? tailFlick : tailFlick * .45);
+              + (j === 0 ? tailFlick : tailFlick * .45) + sleepKick;
             k = tailKUp[j];
             damp = tailDUp[j];
           }
@@ -762,18 +952,27 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
       paint.clearRect(0, 0, width, height);
       paint.translate(ground.x, ground.y);
       paint.scale(scale, scale);
-      const squash = bobPos * .036 * (1 - crouch);
-      const bodyWidth = 1 + squash * .75;
-      const bodyHeight = (1 - .45 * crouch) * (1 - squash);
+      const grooveBounce = musicBlend * (1 - crouch) * .026 * Math.abs(Math.sin(elapsed * 5.8));
+      const squash = bobPos * .036 * (1 - crouch) + grooveBounce;
+      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze;
+      const bodyWidth = 1 + squash * .75 - .014 * napBreath * crouch;
+      const bodyHeight = 1 - squash + .038 * napBreath * crouch;
+      const activeBody = crouch > .002 ? createBodyPath(crouch) : bodyShape;
       if (fire > .025) drawFire(paint, fire, elapsed);
       for (const side of [-1, 1]) {
         const foot = projectScreen(model, bodyCenterX + side * .110, 0, .168, camera);
-        drawFootShadow(paint, (foot.x - ground.x) / scale, (foot.y - ground.y) / scale);
+        const fx = MathUtils.lerp((foot.x - ground.x) / scale, side < 0 ? -24 : 36, crouch);
+        const fy = MathUtils.lerp((foot.y - ground.y) / scale, 3, crouch);
+        drawFootShadow(paint, fx, fy);
       }
       const armTargets = paws.map(({ side, wrist }) => {
         const point = projectScreen(wrist, pad.x, pad.y, pad.z, camera);
-        const endY = (point.y - ground.y) / scale;
-        return { side, x: (point.x - ground.x) / scale, y: endY < 0 ? endY * bodyHeight : endY };
+        const rawX = (point.x - ground.x) / scale;
+        const rawY = (point.y - ground.y) / scale;
+        const standingY = rawY < 0 ? rawY * bodyHeight : rawY;
+        const x = MathUtils.lerp(rawX, side < 0 ? -50 : -13, crouch);
+        const y = MathUtils.lerp(standingY, side < 0 ? -3 : -4, crouch);
+        return { side, x, y };
       });
       if (hasTailTarget) {
         const point = projectWorld(tailTarget, camera);
@@ -785,15 +984,21 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
           tailHitRel = solveTailHit(tailTargetX, tailTargetY);
         }
       }
-      const tailPoints = computeTailChain(tailAngles, 45 * tailMirror, tailRootY, tailMirror);
+      const tailRootX = MathUtils.lerp(45 * tailMirror, 61, crouch);
+      const tailPoints = computeTailChain(tailAngles, tailRootX, tailRootY, tailMirror);
+      const applyBodyTransform = () => {
+        paint.translate(0, 4 * crouch);
+        paint.scale(bodyWidth, bodyHeight);
+        paint.translate(0, -4 * crouch);
+      };
       // Lay down the outline before filling the overlapping shapes.
       paint.save();
-      paint.scale(bodyWidth, bodyHeight);
+      applyBodyTransform();
       drawTailChain(paint, tailPoints, ivory, tailWidth + silhouetteWidth);
-      stroke(paint, ivory, silhouetteWidth, bodyShape);
+      stroke(paint, ivory, silhouetteWidth, activeBody);
       paint.restore();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, true);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, true);
       }
       const closed = Math.max(face.closed, face.crying);
       const eyeOffset = resolveFaceGaze(gaze, reaction.tension, closed);
@@ -804,15 +1009,24 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
       stroke(paint, ivory, silhouetteWidth, headShape);
       paint.restore();
       paint.save();
-      paint.scale(bodyWidth, bodyHeight);
+      applyBodyTransform();
       drawTailChain(paint, tailPoints, black, tailWidth);
       paint.fillStyle = black;
-      paint.fill(bodyShape);
+      paint.fill(activeBody);
+      const haunchAlpha = MathUtils.smoothstep(crouch, .35, .95) * .68;
+      if (haunchAlpha > .01) {
+        paint.globalAlpha = haunchAlpha;
+        paint.beginPath();
+        paint.moveTo(22, -33);
+        paint.bezierCurveTo(45, -35, 55, -16, 44, 2);
+        stroke(paint, '#575450', 1.5);
+        paint.globalAlpha = 1;
+      }
       paint.restore();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch);
       }
-      drawHead(paint, gaze, reaction, face, whiskerTwitch, eyeStyle, elapsed);
+      drawHead(paint, gaze, reaction, face, whiskerTwitch, eyeStyle, elapsed, musicBlend, headphoneStyle);
       if (tailImpacts.length) {
         drawTailImpacts(paint, tailImpacts, elapsed);
       }
@@ -820,12 +1034,12 @@ export function createMidnightCat(floatingLayer, { eyeStyle: initialEyeStyle = '
     containsHeadPoint,
     containsScreenPoint(x, y) {
       if (containsHeadPoint(x, y)) return true;
+      const activeBody = crouch > .002 ? createBodyPath(crouch) : bodyShape;
       const localX = (x - ground.x) / scale;
-      const bodyHeight = 1 - .45 * crouch;
-      const localY = (y - ground.y) / (scale * bodyHeight);
+      const localY = (y - ground.y) / scale;
       paint.save();
       paint.resetTransform();
-      const hit = paint.isPointInPath(bodyShape, localX, localY);
+      const hit = paint.isPointInPath(activeBody, localX, localY);
       paint.restore();
       return hit;
     },

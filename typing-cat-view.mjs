@@ -5,8 +5,8 @@ import {
   PlaneGeometry, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMidnightCat, midnightEyeStyles } from './midnight-cat.mjs';
-export { midnightEyeStyles };
+import { createMidnightCat, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
+export { midnightEyeStyles, midnightHeadphoneStyles };
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createMeowPlayer } from './cat-meow.mjs';
@@ -304,7 +304,7 @@ function makeShadow(width, depth, x, z, opacity) {
 }
 
 export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnight',
-  eyeStyle = 'xiaohei', rewardsEnabled = true } = {}) {
+  eyeStyle = 'xiaohei', headphoneStyle = 'cream', rewardsEnabled = true, musicMode: initialMusicMode = false } = {}) {
   const preset = typingCatSchemes[scheme] ?? typingCatSchemes.midnight;
   const status = stage.querySelector('#status');
   const floatingLayer = stage.querySelector('#floating');
@@ -349,7 +349,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   };
   signal?.addEventListener('abort', cleanup, { once: true });
   try {
-    cat = preset.createCat(floatingLayer, { eyeStyle });
+    cat = preset.createCat(floatingLayer, { eyeStyle, headphoneStyle });
   } catch (error) {
     if (!signal?.aborted) cleanup();
     throw error;
@@ -414,6 +414,8 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   const feedPoint = new Vector2();
   const meow = createMeowPlayer(signal);
   const petEffects = [];
+  let petHeartCount = 0;
+  const heartSvg = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.4C9.6 17.1 2.2 12.1 2.2 7.1C2.2 4.3 4.3 2.4 6.8 2.4C8.4 2.4 9.5 3.3 10 4.6C10.5 3.3 11.6 2.4 13.2 2.4C15.7 2.4 17.8 4.3 17.8 7.1C17.8 12.1 10.4 17.1 10 17.4Z"/><circle cx="6.2" cy="6.1" r="1.15" class="pet-heart-shine"/></svg>';
   const napLabel = document.createElement('div');
   napLabel.className = 'nap-label';
   napLabel.hidden = true;
@@ -450,6 +452,9 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   let moodBlend = 0;
   let pet = null;
   let petBlend = 0;
+  let musicMode = Boolean(initialMusicMode);
+  let nextMusicNote = 0;
+  if (musicMode) cat.setMusicMode?.(true);
   rewards = createCatRewards(stage, { enabled: rewardsEnabled, canFeedAt, onFeed: feedCat });
   let angerMarkBlend = Number(rewards.anger > angerMarkThreshold);
   let angerElapsed = 0;
@@ -746,6 +751,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     recentKeys.length = 0;
     resumeHeldPaws(fedAt);
     showPetEffect(fedAt, true);
+    showPetEffect(fedAt + .18, true);
   }
 
   function stopPetting() {
@@ -757,12 +763,33 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     lastInput = clock();
   }
 
-  function showPetEffect(time, isHeart) {
+  function showPetEffect(time, kind) {
+    const mode = kind === true ? 'heart' : kind === false ? 'meow' : kind;
     const effect = document.createElement('div');
-    effect.className = isHeart ? 'pet-effect pet-heart' : 'pet-effect pet-meow';
-    effect.textContent = isHeart ? '♥' : '喵';
+    effect.className = mode === 'heart'
+      ? 'pet-effect pet-heart'
+      : mode === 'anger'
+        ? 'pet-effect pet-anger'
+        : mode === 'note'
+          ? 'pet-effect pet-note'
+          : 'pet-effect pet-meow';
+    if (mode === 'heart') effect.innerHTML = heartSvg;
+    else if (mode === 'anger') effect.textContent = '💢';
+    else if (mode === 'note') effect.textContent = petHeartCount % 2 === 0 ? '♪' : '♫';
+    else effect.textContent = '喵';
     floatingLayer.append(effect);
-    petEffects.push({ effect, time, isHeart, lifetime: isHeart ? 1.15 : 1.05 });
+    const burst = mode === 'heart' || mode === 'anger' || mode === 'note';
+    const side = burst ? (petHeartCount++ % 2 === 0 ? 1 : -1) : 1;
+    petEffects.push({
+      effect,
+      time,
+      mode,
+      lifetime: mode === 'heart' ? .98 : mode === 'anger' ? .92 : mode === 'note' ? 1.18 : 1.05,
+      side,
+      spreadX: mode === 'note' ? side * (6 + Math.random() * 6) : burst ? side * (4 + Math.random() * 4) : 0,
+      tilt: mode === 'note' ? side * (8 + Math.random() * 7) : burst ? side * (5 + Math.random() * 5) : 0,
+      scale: mode === 'heart' ? .88 + Math.random() * .16 : mode === 'note' ? .88 + Math.random() * .20 : mode === 'anger' ? .92 + Math.random() * .14 : 1,
+    });
   }
 
   function updateNapLetters(seconds) {
@@ -804,7 +831,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       const elapsed = time - pet.started;
       if (time >= pet.nextHeart) {
         showPetEffect(time, true);
-        pet.nextHeart = time + .92;
+        pet.nextHeart = time + .52;
       }
       if (time >= pet.nextMeow) {
         const duration = meow.play();
@@ -842,10 +869,29 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     }
     const fedAge = time - fedAt;
     const feeding = MathUtils.smoothstep(fedAge, 0, .14) * (1 - MathUtils.smoothstep(fedAge, .75, 1.25));
+    if (musicMode && !striking) {
+      const beat = time * 5.8;
+      const sway = Math.sin(beat);
+      const bob = Math.abs(Math.sin(beat));
+      const musicBlink = Math.pow(Math.max(0, Math.sin(time * .92)), 30);
+      cat.setReaction({
+        tension: 0,
+        doze: 0,
+        happy: 1,
+        squint: Math.max(musicBlink, .64 * feeding),
+        blush: Math.max(.62, .76 * feeding),
+        mouth: Math.max(meow.mouthAmount(), (.33 + .21 * Math.sin(time * 24)) * feeding),
+        yaw: .10 * sway,
+        pitch: .18 * typingBlend + .02 + .10 * bob + .04 * keyBounce,
+        roll: .19 * sway,
+      });
+      return;
+    }
     const irritation = .34 * MathUtils.smoothstep(rewards.anger, 56, 99) * (1 - napBlend) * (1 - feeding);
     cat.setReaction({
       tension: striking ? 0 : Math.max(tension, irritation),
       doze: napBlend,
+      happy: 0,
       squint: Math.max(petBlend, napBlend, .64 * feeding),
       blush: Math.max(.92 * petBlend, .76 * feeding),
       mouth: Math.max(meow.mouthAmount(), (.33 + .21 * Math.sin(time * 24)) * feeding),
@@ -870,11 +916,17 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   stage.addEventListener('pointerdown', event => {
     if (event.button !== 0 && event.button !== 2) return;
     readPointer(event);
+    if (event.button === 0 && rewards.striking && canFeedAt(event.clientX, event.clientY)) {
+      const time = clock();
+      showPetEffect(time, 'anger');
+      cat.flickTail?.();
+      return;
+    }
     if (event.button === 0 && !pet && overHead()) {
       const time = clock();
       pet = {
         id: event.pointerId, started: time, startX: pointer.x, startY: pointer.y, offsetX: 0, offsetY: 0,
-        nextHeart: time + .32, nextMeow: time + .48,
+        nextHeart: time + .16, nextMeow: time + .48,
       };
       meow.unlock();
       stage.setPointerCapture(event.pointerId);
@@ -926,6 +978,10 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       }
     }
 
+    if (musicMode && rewards.coolDown(seconds)) {
+      lastInput = time;
+      resumeHeldPaws(time);
+    }
     const striking = rewards.striking;
     if (!striking && !rewards.dragging && (pressedSide || mouseInUse(time))) {
       reserveMousePaw(time);
@@ -933,20 +989,25 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     }
     const idleTime = time - lastInput;
     const busy = Boolean(pet || heldKeys.size || mousePresses.size);
-    const napping = striking || (!busy && idleTime >= napDelay);
+    const napping = striking || (!busy && !musicMode && idleTime >= napDelay);
+    if (musicMode && !pet && !striking && time >= nextMusicNote) {
+      showPetEffect(time, 'note');
+      nextMusicNote = time + .86;
+    }
     const typingActive = !pet && !striking && (heldKeys.size > 0 || time - lastKeyAt < .62);
     typingBlend = MathUtils.damp(typingBlend, Number(typingActive), typingActive ? 14 : 7, seconds);
     keyBounce = MathUtils.damp(keyBounce, 0, 14, seconds);
     napBlend = MathUtils.damp(napBlend, napping ? 1 : 0, napping ? 3 : 16, seconds);
     strikeBlend = MathUtils.damp(strikeBlend, Number(striking), striking ? 4.5 : 9, seconds);
-    const breath = Math.sin(time * 2.4);
+    const breath = Math.sin(time * 2.1);
+    const crouchBlend = Math.max(strikeBlend, napBlend);
     if (!pet && !typingActive && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
     animateReaction(time, seconds, breath);
-    cat.setCrouch?.(strikeBlend);
+    cat.setCrouch?.(crouchBlend);
     cat.update(seconds);
-    paws.update(time, seconds, striking);
+    paws.update(time, seconds, striking || napping);
     const resting = busy ? 0 : MathUtils.smoothstep(idleTime, 1.8, 3);
-    const bodyHeight = cat.setCrouch ? 1 : 1 - .34 * strikeBlend - .022 * keyBounce;
+    const bodyHeight = cat.setCrouch ? 1 : 1 - .34 * crouchBlend - .022 * keyBounce;
     cat.model.scale.y = bodyHeight + (.0032 * resting + .004 * napBlend) * breath;
     for (const key of keys.values()) {
       const age = time - key.started;
@@ -969,11 +1030,11 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     }
     projectHead(-.212, .162, .130);
     rewards.positionAnger(
-      MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 18, viewWidth - 18),
-      MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 18, viewHeight - 18),
+      MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 28, viewWidth - 28),
+      MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 24, viewHeight - 24),
     );
     const speechless = typingMood === 'speechless' ? moodBlend : 0;
-    const showAngerMark = rewards.enabled && (time < tenseUntil || rewards.anger > angerMarkThreshold);
+    const showAngerMark = rewards.enabled && !striking && !musicMode && (time < tenseUntil || rewards.anger > angerMarkThreshold);
     angerMarkBlend = MathUtils.damp(angerMarkBlend, Number(showAngerMark), showAngerMark ? 13 : 12, seconds);
     if (angerMarkBlend <= .02) {
       if (!angerMark.hidden) angerMark.hidden = true;
@@ -1010,20 +1071,36 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     for (let index = petEffects.length - 1; index >= 0; index--) {
       const item = petEffects[index];
       const progress = (time - item.time) / item.lifetime;
+      if (progress < 0) {
+        item.effect.style.opacity = 0;
+        continue;
+      }
       if (progress >= 1) {
         item.effect.remove();
         petEffects.splice(index, 1);
         continue;
       }
-      if (item.isHeart) {
-        projectHead(.172 + .077 * progress, .224 + .115 * progress, .137);
+      if (item.mode === 'heart' || item.mode === 'anger' || item.mode === 'note') {
+        const anchorX = item.mode === 'note' ? item.side * .19 : item.mode === 'anger' ? .196 : .182;
+        const anchorY = item.mode === 'note' ? .218 : item.mode === 'anger' ? .236 : .228;
+        projectHead(anchorX, anchorY, .134);
+        const enter = MathUtils.smoothstep(progress, 0, .15);
+        const fade = MathUtils.smoothstep(progress, .36, 1);
+        const rise = (item.mode === 'note' ? 36 : item.mode === 'anger' ? 28 : 30) * progress;
+        const sway = item.spreadX * (.4 + .6 * progress) + (item.mode === 'note' ? 4.5 : 2.8) * Math.sin(Math.PI * progress) * item.side;
+        const tilt = item.tilt + (item.mode === 'note' ? 8 : 6) * Math.sin(progress * Math.PI * 2);
+        const scale = (.74 + .28 * enter - .10 * progress) * item.scale;
+        item.effect.style.left = `${MathUtils.clamp((.5 + projected.x * .5) * viewWidth, 14, viewWidth - 14)}px`;
+        item.effect.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 26, viewHeight - 14)}px`;
+        item.effect.style.opacity = enter * (1 - fade);
+        item.effect.style.transform = `translate(-50%, -50%) translate(${sway}px, ${-rise}px) rotate(${tilt}deg) scale(${scale})`;
       } else {
         projectHead(.036 + .20 * progress, .047 + .05 * progress, .217);
+        item.effect.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 17, viewWidth - 17)}px`;
+        item.effect.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 16, viewHeight - 16)}px`;
+        item.effect.style.opacity = (1 - MathUtils.smoothstep(progress, .66, 1)) * MathUtils.smoothstep(progress, 0, .12);
+        item.effect.style.transform = `translate(-50%, -50%) scale(${.70 + Math.min(progress * 2.5, .48)})`;
       }
-      item.effect.style.left = `${MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 17, viewWidth - 17)}px`;
-      item.effect.style.top = `${MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 16, viewHeight - 16)}px`;
-      item.effect.style.opacity = (1 - MathUtils.smoothstep(progress, .66, 1)) * MathUtils.smoothstep(progress, 0, .12);
-      item.effect.style.transform = `translate(-50%, -50%) scale(${.70 + Math.min(progress * 2.5, .48)})`;
     }
     renderer.render(scene, camera);
   }
@@ -1052,6 +1129,18 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     },
     setEyeStyle(style) {
       cat.setEyeStyle?.(style);
+    },
+    setHeadphoneStyle(style) {
+      cat.setHeadphoneStyle?.(style);
+    },
+    setMusicMode(enabled) {
+      musicMode = Boolean(enabled);
+      cat.setMusicMode?.(musicMode);
+      if (musicMode) {
+        const time = clock();
+        lastInput = time;
+        nextMusicNote = time + .24;
+      }
     },
     setRewardsEnabled(enabled) {
       const wasStriking = rewards.striking;
