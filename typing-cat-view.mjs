@@ -5,8 +5,8 @@ import {
   PlaneGeometry, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMidnightCat, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
-export { midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles };
+import { createMidnightCat, getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
+export { getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles };
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createMeowPlayer } from './cat-meow.mjs';

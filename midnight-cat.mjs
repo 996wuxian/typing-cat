@@ -20,8 +20,22 @@ export const midnightEyeStyles = {
   starry: { label: '闪亮星星眼' },
   glossy: { label: '纯净大黑瞳' },
   lime: { label: '青柠猫瞳' },
-  ring: { label: '极简白圈' },
+  sapphire: { label: '海蓝猫瞳', excludeCoats: ['black'] },
+  amber: { label: '琥珀金瞳' },
+  ring: { label: '极简白圈', coats: ['black'] },
 };
+
+export function isEyeStyleAllowed(style, coat = 'black') {
+  const entry = midnightEyeStyles[style];
+  if (!entry) return false;
+  if (entry.coats && !entry.coats.includes(coat)) return false;
+  if (entry.excludeCoats && entry.excludeCoats.includes(coat)) return false;
+  return true;
+}
+
+export function getEyeStylesForCoat(coat = 'black') {
+  return Object.entries(midnightEyeStyles).filter(([key]) => isEyeStyleAllowed(key, coat));
+}
 export const midnightHeadphoneStyles = {
   cream: { label: '奶白复古' },
   sony: { label: '曜石降噪' },
@@ -469,8 +483,9 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   const lid = MathUtils.smoothstep(closed, .62, .94);
   const { x, y, angry } = eyeOffset;
   const bigBlack = eyeStyle === 'xiaohei' || eyeStyle === 'starry' || eyeStyle === 'glossy';
-  const rx = bigBlack ? 12.5 : eyeStyle === 'lime' ? 11.4 : 10.7;
-  const ry = bigBlack ? 12.7 : eyeStyle === 'lime' ? 11.8 : 11.5;
+  const jewelIris = eyeStyle === 'amber' || eyeStyle === 'sapphire';
+  const rx = bigBlack ? 12.5 : jewelIris ? 11.8 : eyeStyle === 'lime' ? 11.4 : 10.7;
+  const ry = bigBlack ? 12.7 : jewelIris ? 12.1 : eyeStyle === 'lime' ? 11.8 : 11.5;
   paint.save();
   paint.translate(side * ((bigBlack ? 18.8 : 18.2) - 1.1 * angry) + x, y);
 
@@ -481,7 +496,7 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
     paint.globalAlpha = 1 - lid;
     if (angry > .01) {
       const tilt = -side * .56 * Math.sqrt(angry);
-      const browY = MathUtils.lerp(-rh - 4, bigBlack ? .4 : eyeStyle === 'lime' ? .2 : .8, angry);
+      const browY = MathUtils.lerp(-rh - 4, bigBlack ? .4 : (eyeStyle === 'lime' || jewelIris) ? .2 : .8, angry);
       paint.rotate(tilt);
       paint.beginPath();
       paint.rect(-rw - 8, browY, (rw + 8) * 2, rh * 2 + 16);
@@ -513,6 +528,33 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       ellipse(paint, pupilX, pupilY, 5.4 - 1.5 * angry, (7.8 - .7 * angry) * (1 - .72 * closed), black);
       if (closed < .55) {
         ellipse(paint, pupilX - 1.7, pupilY - 2.6, 1.4, 1.4, '#f7ffdb');
+      }
+    } else if (jewelIris) {
+      const isAmber = eyeStyle === 'amber';
+      paint.beginPath();
+      paint.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
+      if (coat.eyeRim) stroke(paint, coat.eyeRim, 2.2);
+      const irisGrad = paint.createLinearGradient(0, -rh, 0, rh);
+      if (isAmber) {
+        irisGrad.addColorStop(0, '#dc8622');
+        irisGrad.addColorStop(.52, '#f7b640');
+        irisGrad.addColorStop(1, '#ffe68c');
+      } else {
+        irisGrad.addColorStop(0, '#3274e0');
+        irisGrad.addColorStop(.52, '#68b2fc');
+        irisGrad.addColorStop(1, '#bde9ff');
+      }
+      fillShape(paint, irisGrad);
+      paint.clip();
+      ellipse(paint, 0, rh * .48, rw * .72, rh * .42, isAmber ? '#fff0ad88' : '#dcf4ff99');
+      const open = 1 - closed;
+      const pupilX = MathUtils.clamp(gaze.x * .40 * open, -3.8, 3.8);
+      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .34 + .4, 1.1, angry) * open, -3.2, 3.4);
+      ellipse(paint, pupilX, pupilY, 5.8 - 1.3 * angry, (7.6 - .7 * angry) * (1 - .74 * closed), black);
+      if (closed < .55) {
+        const shine = isAmber ? '#fffcef' : '#f4fcff';
+        ellipse(paint, pupilX - 2.0, pupilY - 3.0, 1.85, 1.85, shine);
+        ellipse(paint, pupilX + 2.4, pupilY + 3.0, 1.05, 1.05, shine);
       }
     } else {
       paint.beginPath();
@@ -992,7 +1034,7 @@ export function createMidnightCat(floatingLayer, {
   if (!paint) throw new Error('Could not create the 2D cat canvas.');
   floatingLayer.before(canvas);
   let catCoat = Object.hasOwn(midnightCatCoats, initialCatCoat) ? initialCatCoat : 'black';
-  let eyeStyle = Object.hasOwn(midnightEyeStyles, initialEyeStyle) ? initialEyeStyle : 'xiaohei';
+  let eyeStyle = isEyeStyleAllowed(initialEyeStyle, catCoat) ? initialEyeStyle : 'xiaohei';
   let headphoneStyle = Object.hasOwn(midnightHeadphoneStyles, initialHeadphoneStyle) ? initialHeadphoneStyle : 'cream';
 
   const model = new Group();
@@ -1075,10 +1117,13 @@ export function createMidnightCat(floatingLayer, {
       if (amount > .05) tailMotion = null;
     },
     setCatCoat(coat) {
-      if (Object.hasOwn(midnightCatCoats, coat)) catCoat = coat;
+      if (Object.hasOwn(midnightCatCoats, coat)) {
+        catCoat = coat;
+        if (!isEyeStyleAllowed(eyeStyle, catCoat)) eyeStyle = 'xiaohei';
+      }
     },
     setEyeStyle(style) {
-      if (Object.hasOwn(midnightEyeStyles, style)) eyeStyle = style;
+      if (isEyeStyleAllowed(style, catCoat)) eyeStyle = style;
     },
     setHeadphoneStyle(style) {
       if (Object.hasOwn(midnightHeadphoneStyles, style)) headphoneStyle = style;

@@ -5,11 +5,11 @@ import { LogicalSize } from '@tauri-apps/api/dpi';
 import { emit, listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconBrandGithub, IconChevronRight, IconCircleCheck, IconDownload, IconExternalLink, IconHeadphones, IconMinus, IconPin, IconPinnedOff, IconPower, IconRefresh, IconX } from '@tabler/icons-react';
-import { midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightKeyboardStyles, mountTypingCat } from '../../typing-cat-view.mjs';
+import { getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightKeyboardStyles, mountTypingCat } from '../../typing-cat-view.mjs';
 import './styles.css';
 import './rewards.css';
 
-const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '1.1.3';
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '1.1.4';
 const APP_AUTHOR = '996wuxian';
 const APP_REPOSITORY_LABEL = '996wuxian/typing-cat';
 const APP_REPOSITORY_URL = 'https://github.com/996wuxian/typing-cat';
@@ -30,7 +30,6 @@ const eyeStylePreference = 'typing-cat.eye-style';
 const headphoneStylePreference = 'typing-cat.headphone-style';
 const keyboardStylePreference = 'typing-cat.keyboard-style';
 const catCoatOptions = Object.entries(midnightCatCoats);
-const eyeStyleOptions = Object.entries(midnightEyeStyles);
 const headphoneStyleOptions = Object.entries(midnightHeadphoneStyles);
 const keyboardStyleOptions = Object.entries(midnightKeyboardStyles);
 const loadingStatus = '正在准备猫咪和键盘…';
@@ -62,9 +61,9 @@ function savedCatCoat() {
   return Object.hasOwn(midnightCatCoats, saved) ? saved : 'black';
 }
 
-function savedEyeStyle() {
+function savedEyeStyle(coat = savedCatCoat()) {
   const saved = localStorage.getItem(eyeStylePreference);
-  return Object.hasOwn(midnightEyeStyles, saved) ? saved : 'xiaohei';
+  return isEyeStyleAllowed(saved, coat) ? saved : 'xiaohei';
 }
 
 function savedHeadphoneStyle() {
@@ -171,10 +170,37 @@ function CatCoatPreview({ coat }) {
   );
 }
 
-function EyePreview({ style }) {
+function EyePreview({ style, coat = 'black' }) {
+  const bg = {
+    black: '#161615',
+    siamese: '#4b352b',
+    tabby: '#b0a69a',
+    ragdoll: '#f8f4ee',
+    orange: '#f3b165',
+    calico: '#f8f4ed',
+  }[coat] ?? '#161615';
+  const rim = coat === 'black' ? '#fbf8ee' : '#584b44';
+  const eyeRim = coat === 'black' || coat === 'siamese' ? 'none' : '#4a3d36';
+  const gradId = `eye-grad-${style}`;
   return (
     <svg className="wardrobe-preview-svg" viewBox="0 0 64 36" aria-hidden="true">
-      <rect x="2" y="2" width="60" height="32" rx="11" fill="#161615" stroke="#fbf8ee" strokeWidth="1.8" />
+      <defs>
+        {style === 'amber' && (
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#dc8622" />
+            <stop offset="52%" stopColor="#f7b640" />
+            <stop offset="100%" stopColor="#ffe68c" />
+          </linearGradient>
+        )}
+        {style === 'sapphire' && (
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3274e0" />
+            <stop offset="52%" stopColor="#68b2fc" />
+            <stop offset="100%" stopColor="#bde9ff" />
+          </linearGradient>
+        )}
+      </defs>
+      <rect x="2" y="2" width="60" height="32" rx="11" fill={bg} stroke={rim} strokeWidth="1.6" />
       {[-1, 1].map(side => {
         const cx = 32 + side * 13;
         const cy = 18;
@@ -184,15 +210,28 @@ function EyePreview({ style }) {
         if (style === 'lime') {
           return (
             <g key={side}>
-              <ellipse cx={cx} cy={cy} rx="8.1" ry="8.4" fill="#daf478" />
+              <ellipse cx={cx} cy={cy} rx="8.1" ry="8.4" fill="#daf478" stroke={eyeRim} strokeWidth="1.2" />
               <ellipse cx={cx} cy={cy + .4} rx="3.8" ry="5.5" fill="#161615" />
               <circle cx={cx - 1.3} cy={cy - 1.8} r="1.15" fill="#f7ffdb" />
             </g>
           );
         }
+        if (style === 'amber' || style === 'sapphire') {
+          const shine = style === 'amber' ? '#fffcef' : '#f4fcff';
+          const glow = style === 'amber' ? '#fff0ad88' : '#dcf4ff99';
+          return (
+            <g key={side}>
+              <ellipse cx={cx} cy={cy} rx="8.3" ry="8.5" fill={`url(#${gradId})`} stroke={eyeRim} strokeWidth="1.2" />
+              <ellipse cx={cx} cy={cy + 3.6} rx="5.5" ry="3.2" fill={glow} />
+              <ellipse cx={cx} cy={cy + .2} rx="4.1" ry="5.4" fill="#161615" />
+              <circle cx={cx - 1.5} cy={cy - 2.1} r="1.4" fill={shine} />
+              <circle cx={cx + 1.7} cy={cy + 2.2} r=".85" fill={shine} />
+            </g>
+          );
+        }
         return (
           <g key={side}>
-            <ellipse cx={cx} cy={cy} rx="8.7" ry="8.8" fill="#fbf8ee" />
+            <ellipse cx={cx} cy={cy} rx="8.7" ry="8.8" fill="#fbf8ee" stroke={eyeRim} strokeWidth="1.2" />
             <ellipse cx={cx} cy={cy} rx="6.4" ry="6.5" fill="#161615" />
             {style === 'xiaohei' && (
               <>
@@ -310,6 +349,7 @@ function KeyboardPreview({ style }) {
 
 function WardrobePanel({ catCoat, eyeStyle, headphoneStyle, keyboardStyle, musicMode,
   onCatCoat, onEyeStyle, onHeadphoneStyle, onKeyboardStyle, onToggleMusic, onClose }) {
+  const visibleEyeStyles = getEyeStylesForCoat(catCoat);
   return (
     <section className="window-menu wardrobe-menu" role="dialog" aria-label="装扮">
       <header className="menu-header" data-tauri-drag-region>
@@ -342,10 +382,10 @@ function WardrobePanel({ catCoat, eyeStyle, headphoneStyle, keyboardStyle, music
             <span className="wardrobe-current">{midnightEyeStyles[eyeStyle]?.label}</span>
           </div>
           <div className="wardrobe-grid" role="radiogroup" aria-label="眼睛样式">
-            {eyeStyleOptions.map(([key, { label }]) => (
+            {visibleEyeStyles.map(([key, { label }]) => (
               <button key={key} type="button" role="radio" aria-checked={eyeStyle === key}
                 className="wardrobe-card" onClick={() => onEyeStyle(key)}>
-                <EyePreview style={key} />
+                <EyePreview style={key} coat={catCoat} />
                 <span>{label}</span>
               </button>
             ))}
@@ -789,7 +829,11 @@ function WardrobeApp() {
         keyboardStyle={state.keyboardStyle}
         musicMode={state.musicMode}
         onCatCoat={next => {
-          setState(prev => ({ ...prev, catCoat: next }));
+          setState(prev => ({
+            ...prev,
+            catCoat: next,
+            eyeStyle: isEyeStyleAllowed(prev.eyeStyle, next) ? prev.eyeStyle : 'xiaohei',
+          }));
           dispatch('catCoat', next);
         }}
         onEyeStyle={next => {
@@ -942,10 +986,16 @@ function App() {
     setCatCoat(next);
     sceneControls.current?.setCatCoat(next);
     localStorage.setItem(catCoatPreference, next);
+    if (!isEyeStyleAllowed(eyeStyleRef.current, next)) {
+      eyeStyleRef.current = 'xiaohei';
+      setEyeStyle('xiaohei');
+      sceneControls.current?.setEyeStyle('xiaohei');
+      localStorage.setItem(eyeStylePreference, 'xiaohei');
+    }
   }
 
   function updateEyeStyle(next) {
-    if (next === eyeStyleRef.current || !Object.hasOwn(midnightEyeStyles, next)) return;
+    if (next === eyeStyleRef.current || !isEyeStyleAllowed(next, catCoatRef.current)) return;
     eyeStyleRef.current = next;
     setEyeStyle(next);
     sceneControls.current?.setEyeStyle(next);
