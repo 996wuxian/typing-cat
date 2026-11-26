@@ -5,8 +5,8 @@ import {
   PlaneGeometry, Raycaster, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createMidnightCat, getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles } from './midnight-cat.mjs';
-export { getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles };
+import { createMidnightCat, getEyeStylesForCoat, isDogCoat, isEyeStyleAllowed, midnightCatCoats, midnightDogCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightPetCoats } from './midnight-cat.mjs';
+export { getEyeStylesForCoat, isDogCoat, isEyeStyleAllowed, midnightCatCoats, midnightDogCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightPetCoats };
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
 import { createCatRewards } from './typing-cat-rewards.mjs';
@@ -570,7 +570,12 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   let musicMode = Boolean(initialMusicMode);
   let nextMusicNote = 0;
   if (musicMode) cat.setMusicMode?.(true);
-  rewards = createCatRewards(stage, { enabled: rewardsEnabled, canFeedAt, onFeed: feedCat });
+  rewards = createCatRewards(stage, {
+    enabled: rewardsEnabled,
+    isDog: isDogCoat(catCoat),
+    canFeedAt,
+    onFeed: feedCat,
+  });
   let angerMarkBlend = Number(rewards.anger > angerMarkThreshold);
   let angerElapsed = 0;
   let napBlend = Number(rewards.striking);
@@ -684,7 +689,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     key.releaseAt = source ? Infinity : time + .182;
     const { x, z } = key.cap.position;
     const point = new Vector3(x, capY + capHeight * .5 - capTravel, z);
-    const useTail = code === 'Space' && Boolean(cat.tapTail);
+    const useTail = code === 'Space' && Boolean(cat.tapTail) && (cat.canTapTail ? cat.canTapTail() : true);
     let side = useTail ? 'tail' : x < .018 - keyboardX ? 'left' : 'right';
     const usingMouse = !rewards.striking && mouseInUse(time);
     if (code === 'Space' && !useTail) {
@@ -893,7 +898,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     if (mode === 'heart') effect.innerHTML = heartSvg;
     else if (mode === 'anger') effect.textContent = '💢';
     else if (mode === 'note') effect.textContent = petHeartCount % 2 === 0 ? '♪' : '♫';
-    else effect.textContent = '喵';
+    else effect.textContent = cat.isDog?.() ? '汪' : '喵';
     floatingLayer.append(effect);
     const burst = mode === 'heart' || mode === 'anger' || mode === 'note';
     const side = burst ? (petHeartCount++ % 2 === 0 ? 1 : -1) : 1;
@@ -1146,7 +1151,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       mouse.body.position.y = dropY;
       keyboardShadow.material.opacity = deskEase;
       mouseShadow.material.opacity = deskEase;
-      catShadow.material.opacity = deskEase;
+      catShadow.material.opacity = deskEase * (cat.isSwapping?.() ? .25 : 1);
     }
 
     const idleTime = time - lastInput;
@@ -1318,7 +1323,9 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       cat.pushCarryMotion?.(dx, dy);
     },
     setCatCoat(coat) {
+      lastInput = clock();
       cat.setCatCoat?.(coat);
+      rewards.setPetMode?.(cat.isDog?.() ?? isDogCoat(coat));
     },
     setEyeStyle(style) {
       cat.setEyeStyle?.(style);

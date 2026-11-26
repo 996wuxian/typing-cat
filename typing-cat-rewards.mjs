@@ -10,6 +10,8 @@ const fishIcon = '<canvas class="fish-icon" width="102" height="66" aria-hidden=
 function drawFishIcon(canvas) {
   const paint = canvas.getContext('2d');
   if (!paint) return;
+  paint.setTransform(1, 0, 0, 1, 0, 0);
+  paint.clearRect(0, 0, canvas.width, canvas.height);
   paint.scale(3, 3);
   paint.beginPath();
   paint.moveTo(2.7, 11.6);
@@ -44,6 +46,58 @@ function drawFishIcon(canvas) {
   paint.fill();
 }
 
+function drawBoneIcon(canvas) {
+  const paint = canvas.getContext('2d');
+  if (!paint) return;
+  paint.setTransform(1, 0, 0, 1, 0, 0);
+  paint.clearRect(0, 0, canvas.width, canvas.height);
+  paint.scale(3, 3);
+  paint.beginPath();
+  // Smooth continuous cartoon bone outline
+  paint.moveTo(11.2, 8.6);
+  paint.quadraticCurveTo(17, 9.2, 22.8, 8.6);
+  paint.bezierCurveTo(23.6, 5.3, 27.9, 4.4, 29.6, 7.1);
+  paint.bezierCurveTo(30.6, 8.8, 29.8, 10.7, 28.4, 11.3);
+  paint.bezierCurveTo(29.8, 11.9, 30.6, 13.8, 29.6, 15.5);
+  paint.bezierCurveTo(27.9, 18.2, 23.6, 17.3, 22.8, 14.0);
+  paint.quadraticCurveTo(17, 13.4, 11.2, 14.0);
+  paint.bezierCurveTo(10.4, 17.3, 6.1, 18.2, 4.4, 15.5);
+  paint.bezierCurveTo(3.4, 13.8, 4.2, 11.9, 5.6, 11.3);
+  paint.bezierCurveTo(4.2, 10.7, 3.4, 8.8, 4.4, 7.1);
+  paint.bezierCurveTo(6.1, 4.4, 10.4, 5.3, 11.2, 8.6);
+  paint.closePath();
+
+  // Crisp sticker white outer halo + dark outline + warm ivory bone fill
+  paint.lineJoin = 'round';
+  paint.lineCap = 'round';
+  paint.strokeStyle = '#ffffff';
+  paint.lineWidth = 3.1;
+  paint.stroke();
+  paint.strokeStyle = '#332720';
+  paint.lineWidth = 1.65;
+  paint.stroke();
+
+  const grad = paint.createLinearGradient(0, 6, 0, 17);
+  grad.addColorStop(0, '#fffdf7');
+  grad.addColorStop(.68, '#f9f0df');
+  grad.addColorStop(1, '#e8d9c0');
+  paint.fillStyle = grad;
+  paint.fill();
+
+  // Subtle bone shaft shine
+  paint.beginPath();
+  paint.moveTo(12.2, 10.2);
+  paint.quadraticCurveTo(17, 10.6, 21.8, 10.2);
+  paint.strokeStyle = '#ffffffcc';
+  paint.lineWidth = .95;
+  paint.stroke();
+}
+
+function drawTreatIcon(canvas, isDog) {
+  if (isDog) drawBoneIcon(canvas);
+  else drawFishIcon(canvas);
+}
+
 function readState() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -58,8 +112,9 @@ function readState() {
   }
 }
 
-export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
+export function createCatRewards(stage, { enabled = true, isDog: initialIsDog = false, canFeedAt, onFeed }) {
   const state = readState();
+  let isDog = Boolean(initialIsDog);
   const controller = new AbortController();
   const events = { signal: controller.signal };
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -91,6 +146,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   const drawer = hud.querySelector('.reward-drawer');
   const bank = hud.querySelector('.fish-bank');
   const count = hud.querySelector('.fish-count');
+  const progressLabel = hud.querySelector('.reward-progress-label');
   const progress = hud.querySelector('.reward-track');
   const anger = hud.querySelector('.reward-anger');
   const angerGlyph = hud.querySelector('.reward-anger-glyph');
@@ -99,7 +155,8 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   const hint = hud.querySelector('.fish-drop-hint');
   const ghost = hud.querySelector('.fish-ghost');
   const announcement = hud.querySelector('.reward-announcement');
-  hud.querySelectorAll('.fish-icon').forEach(drawFishIcon);
+  const treatIcons = [...hud.querySelectorAll('.fish-icon')];
+  treatIcons.forEach(canvas => drawTreatIcon(canvas, isDog));
   progress.setAttribute('aria-valuemax', keysPerFish);
   stage.append(hud);
 
@@ -141,21 +198,32 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   function render() {
     const value = fullTimer === undefined ? state.progress : keysPerFish;
     const striking = state.anger >= maxAnger;
+    const treatName = isDog ? '骨头' : '鱼';
+    const treatUnit = isDog ? '根' : '条';
+    const petName = isDog ? '狗狗' : '猫咪';
     count.textContent = state.fish.toLocaleString();
-    bank.title = !state.fish ? '打字攒鱼' : state.anger ? '拖一条鱼喂猫，或按回车喂食' : '猫咪现在心情很好';
-    bank.setAttribute('aria-label', `鱼库存 ${state.fish} 条，${bank.title}`);
+    progressLabel.textContent = isDog ? '攒骨头' : '攒鱼';
+    hint.textContent = isDog ? '拖骨头喂狗' : '拖鱼喂猫';
+    bank.title = !state.fish
+      ? `打字攒${treatName}`
+      : state.anger
+        ? `拖一${treatUnit}${treatName}喂${isDog ? '狗' : '猫'}，或按回车喂食`
+        : `${petName}现在心情很好`;
+    bank.setAttribute('aria-label', `${treatName}库存 ${state.fish} ${treatUnit}，${bank.title}`);
     bank.setAttribute('aria-disabled', String(!state.fish || !state.anger));
     hint.hidden = !striking || !state.fish;
+    progress.setAttribute('aria-label', `攒${treatName}进度`);
     progress.setAttribute('aria-valuenow', value);
     progress.style.setProperty('--reward-amount', value / keysPerFish);
     const percent = Math.floor(state.anger);
+    const strikeText = isDog ? '想啃骨头' : '想吃鱼';
     anger.hidden = state.anger < showAngerAt;
     anger.dataset.striking = String(striking);
     angerGlyph.textContent = striking ? '罢工' : '怒';
-    angerCount.textContent = striking ? '想吃鱼' : `${percent}%`;
+    angerCount.textContent = striking ? strikeText : `${percent}%`;
     anger.setAttribute('aria-label', striking ? '罢工' : '怒气');
     anger.setAttribute('aria-valuenow', percent);
-    anger.setAttribute('aria-valuetext', striking ? '想吃鱼' : `${percent}%`);
+    anger.setAttribute('aria-valuetext', striking ? strikeText : `${percent}%`);
   }
 
   function updateDrawer() {
@@ -210,7 +278,9 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     keyTimes.length = 0;
     saveSoon();
     render();
-    announcement.textContent = `喂了一条鱼，怒气降到 ${Math.floor(state.anger)}%。`;
+    announcement.textContent = isDog
+      ? `喂了一根骨头，怒气降到 ${Math.floor(state.anger)}%。`
+      : `喂了一条鱼，怒气降到 ${Math.floor(state.anger)}%。`;
     onFeed();
   }
 
@@ -300,6 +370,13 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
       }
       render();
     },
+    setPetMode(dog) {
+      const next = Boolean(dog);
+      if (isDog === next) return;
+      isDog = next;
+      treatIcons.forEach(canvas => drawTreatIcon(canvas, isDog));
+      render();
+    },
     setSuppressed(active) {
       const next = Boolean(active);
       if (suppressed === next) return;
@@ -354,8 +431,15 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
           bank.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], 390);
         }
       }
-      if (startedStrike) announcement.textContent = '猫咪罢工了，喂一条鱼可以让它消气。';
-      else if (full) announcement.textContent = `收获一条鱼，库存 ${state.fish} 条。`;
+      if (startedStrike) {
+        announcement.textContent = isDog
+          ? '狗狗罢工了，喂一根骨头可以让它消气。'
+          : '猫咪罢工了，喂一条鱼可以让它消气。';
+      } else if (full) {
+        announcement.textContent = isDog
+          ? `收获一根骨头，库存 ${state.fish} 根。`
+          : `收获一条鱼，库存 ${state.fish} 条。`;
+      }
       render();
       if (full || fullTimer === undefined) burst(full ? 1 : state.progress / keysPerFish, full);
       saveSoon();

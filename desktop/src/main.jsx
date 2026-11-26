@@ -5,7 +5,7 @@ import { LogicalSize } from '@tauri-apps/api/dpi';
 import { emit, listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconBrandGithub, IconChevronRight, IconCircleCheck, IconDownload, IconExternalLink, IconHeadphones, IconMinus, IconPin, IconPinnedOff, IconPower, IconRefresh, IconX } from '@tabler/icons-react';
-import { getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightKeyboardStyles, mountTypingCat } from '../../typing-cat-view.mjs';
+import { getEyeStylesForCoat, isDogCoat, isEyeStyleAllowed, midnightCatCoats, midnightDogCoats, midnightEyeStyles, midnightHeadphoneStyles, midnightKeyboardStyles, midnightPetCoats, mountTypingCat } from '../../typing-cat-view.mjs';
 import './styles.css';
 import './rewards.css';
 
@@ -30,6 +30,7 @@ const eyeStylePreference = 'typing-cat.eye-style';
 const headphoneStylePreference = 'typing-cat.headphone-style';
 const keyboardStylePreference = 'typing-cat.keyboard-style';
 const catCoatOptions = Object.entries(midnightCatCoats);
+const dogCoatOptions = Object.entries(midnightDogCoats);
 const headphoneStyleOptions = Object.entries(midnightHeadphoneStyles);
 const keyboardStyleOptions = Object.entries(midnightKeyboardStyles);
 const loadingStatus = '正在准备猫咪和键盘…';
@@ -58,7 +59,7 @@ function resizeWindow(percent) {
 
 function savedCatCoat() {
   const saved = localStorage.getItem(catCoatPreference);
-  return Object.hasOwn(midnightCatCoats, saved) ? saved : 'black';
+  return Object.hasOwn(midnightPetCoats, saved) ? saved : 'black';
 }
 
 function savedEyeStyle(coat = savedCatCoat()) {
@@ -170,6 +171,136 @@ function CatCoatPreview({ coat }) {
   );
 }
 
+function DogCoatPreview({ coat }) {
+  const clipId = `dog-coat-clip-${coat}`;
+  const isCorgi = coat === 'corgi';
+  const isHusky = coat === 'husky';
+  const isSamoyed = coat === 'samoyed';
+  const isRound = coat === 'golden' || coat === 'border';
+  const headPath = isCorgi
+    ? 'M36 44 C26 44 17 42 13 37 C7 32 7 23 11 16 C4 8 5 1 13 1 C21 0 27 8 30 13 C33 12.5 39 12.5 42 13 C45 8 51 0 59 1 C67 1 68 8 61 16 C65 23 65 32 59 37 C55 42 46 44 36 44 Z'
+    : isHusky
+      ? 'M36 44 C26 44 17 42 13 36 C7 31 7 22 12 15 C13 8 16 1 21 1 C26 0 29 8 31 13 C34 12.5 38 12.5 41 13 C43 8 46 0 51 1 C56 1 59 8 60 15 C65 22 65 31 59 36 C55 42 46 44 36 44 Z'
+      : isSamoyed
+        ? 'M36 45 C26 45 17 43 12 38 C7 36 5 31 8 27 C4 23 6 16 11 13 C12 8 15 3 20 3 C25 3 28 9 30 13 C33 11.5 39 11.5 42 13 C44 9 47 3 52 3 C57 3 60 8 61 13 C66 16 68 23 64 27 C67 31 65 36 60 38 C55 43 46 45 36 45 Z'
+        : isRound
+          ? 'M36 44 C26 44 17 42 13 37 C7 31 7 21 11 14 C15 7 24 5 36 5 C48 5 57 7 61 14 C65 21 65 31 59 37 C55 42 46 44 36 44 Z'
+          : 'M36 44 C24 44 15 42 10 36 C5 31 6 22 11 15 C11 9 13 4 19 4 C24 4 27 9 30 13 C33 12.5 39 12.5 42 13 C45 9 48 4 53 4 C59 4 61 9 61 15 C66 22 67 31 62 36 C57 42 48 44 36 44 Z';
+  const baseFill = {
+    husky: '#fbfaf7',
+    shiba: '#df8b3c',
+    corgi: '#e2913c',
+    golden: '#f0be6a',
+    samoyed: '#ffffff',
+    border: '#ffffff',
+  }[coat] ?? '#fbfaf7';
+  const rim = {
+    husky: '#363c48',
+    shiba: '#6f401c',
+    corgi: '#734522',
+    golden: '#825724',
+    samoyed: '#76757a',
+    border: '#2d313a',
+  }[coat] ?? '#4a3d36';
+
+  return (
+    <svg className="wardrobe-preview-svg" viewBox="0 0 72 48" aria-hidden="true">
+      <defs>
+        <clipPath id={clipId}>
+          <path d={headPath} />
+        </clipPath>
+      </defs>
+      {coat === 'golden' && (
+        <>
+          <path d="M18 9 C9 6 3 13 3 27 C3 39 9 43 15 39 C18 36 17 24 18 9 Z" fill="#cf8b32" stroke={rim} strokeWidth="1.5" />
+          <path d="M54 9 C63 6 69 13 69 27 C69 39 63 43 57 39 C54 36 55 24 54 9 Z" fill="#cf8b32" stroke={rim} strokeWidth="1.5" />
+        </>
+      )}
+      {coat === 'border' && (
+        <>
+          <path d="M24 10 C22 3 17 0 12 2 C9 4 10 11 12 16 Z" fill="#20232a" stroke={rim} strokeWidth="1.5" />
+          <path d="M18 4 C12 2 6 5 4 12 C3 15 7 17 11 14 Z" fill="#20232a" stroke={rim} strokeWidth="1.4" />
+          <path d="M48 10 C50 3 55 0 60 2 C63 4 62 11 60 16 Z" fill="#20232a" stroke={rim} strokeWidth="1.5" />
+          <path d="M54 4 C60 2 66 5 68 12 C69 15 65 17 61 14 Z" fill="#20232a" stroke={rim} strokeWidth="1.4" />
+        </>
+      )}
+      <path d={headPath} fill={baseFill} stroke={rim} strokeWidth="1.6" />
+      <g clipPath={`url(#${clipId})`}>
+        {coat === 'husky' && (
+          <>
+            <path d="M4 0 L68 0 L68 27 C61 24 58 16 50 14 C44 13 39 15 36 19 C33 15 28 13 22 14 C14 16 11 24 4 27 Z" fill="#383f4d" />
+            <ellipse cx="23" cy="8.5" rx="2.7" ry="5.4" fill="#e2b9bf" transform="rotate(-10 23 8.5)" />
+            <ellipse cx="49" cy="8.5" rx="2.7" ry="5.4" fill="#e2b9bf" transform="rotate(10 49 8.5)" />
+            <ellipse cx="28.5" cy="14" rx="3.2" ry="1.8" fill="#fbfaf7" transform="rotate(16 28.5 14)" />
+            <ellipse cx="43.5" cy="14" rx="3.2" ry="1.8" fill="#fbfaf7" transform="rotate(-16 43.5 14)" />
+            <path d="M36 8 Q34 14 36 18 Q38 14 36 8 Z" fill="#fbfaf7" />
+          </>
+        )}
+        {coat === 'shiba' && (
+          <>
+            <ellipse cx="18" cy="8" rx="6.5" ry="6.5" fill="#bd6420" />
+            <ellipse cx="54" cy="8" rx="6.5" ry="6.5" fill="#bd6420" />
+            <ellipse cx="19" cy="10.5" rx="3.2" ry="4.5" fill="#fff1e0" transform="rotate(-14 19 10.5)" />
+            <ellipse cx="53" cy="10.5" rx="3.2" ry="4.5" fill="#fff1e0" transform="rotate(14 53 10.5)" />
+            <path d="M4 46 L4 24 C10 21 18 22 24 28 C29 32 33 28 36 24 C39 28 43 32 48 28 C54 22 62 21 68 24 L68 46 Z" fill="#fff9ee" />
+            <ellipse cx="27.5" cy="16.5" rx="2.8" ry="1.65" fill="#fff9ee" transform="rotate(-12 27.5 16.5)" />
+            <ellipse cx="44.5" cy="16.5" rx="2.8" ry="1.65" fill="#fff9ee" transform="rotate(12 44.5 16.5)" />
+          </>
+        )}
+        {coat === 'corgi' && (
+          <>
+            <ellipse cx="15" cy="8" rx="8" ry="9" fill="#c67326" transform="rotate(-18 15 8)" />
+            <ellipse cx="57" cy="8" rx="8" ry="9" fill="#c67326" transform="rotate(18 57 8)" />
+            <ellipse cx="16" cy="9.5" rx="4.6" ry="7.4" fill="#f5b8b8" transform="rotate(-20 16 9.5)" />
+            <ellipse cx="56" cy="9.5" rx="4.6" ry="7.4" fill="#f5b8b8" transform="rotate(20 56 9.5)" />
+            <path d="M36 9 C32 14 31 21 30 27 C23 27 14 27 6 33 L6 46 L66 46 L66 33 C58 27 49 27 42 27 C41 21 40 14 36 9 Z" fill="#ffffff" />
+          </>
+        )}
+        {coat === 'golden' && (
+          <>
+            <ellipse cx="36" cy="13" rx="18" ry="8" fill="#d9953a" opacity="0.34" />
+            <ellipse cx="36" cy="35" rx="16" ry="9.5" fill="#fff6df" opacity="0.88" />
+          </>
+        )}
+        {coat === 'samoyed' && (
+          <>
+            <ellipse cx="20" cy="10" rx="3.2" ry="4.8" fill="#f5c2c8" transform="rotate(-12 20 10)" />
+            <ellipse cx="52" cy="10" rx="3.2" ry="4.8" fill="#f5c2c8" transform="rotate(12 52 10)" />
+          </>
+        )}
+        {coat === 'border' && (
+          <>
+            <path d="M33.5 4 L5 4 L5 33 C14 33 21 30 26 26 C30 22 31.5 14 33.5 4 Z" fill="#20232a" />
+            <path d="M38.5 4 L67 4 L67 33 C58 33 51 30 46 26 C42 22 40.5 14 38.5 4 Z" fill="#20232a" />
+          </>
+        )}
+      </g>
+      {/* Smaller, higher-set dog eyes */}
+      {[-1, 1].map(side => {
+        const cx = 36 + side * 9.2;
+        return (
+          <g key={side}>
+            <circle cx={cx} cy="23.5" r="4.3" fill="#fbf8ee" stroke={rim} strokeWidth="1" />
+            <circle cx={cx} cy="23.5" r="3.1" fill={coat === 'husky' ? '#5aa8f7' : '#161615'} />
+            {coat === 'husky' && <circle cx={cx} cy="23.5" r="1.65" fill="#161615" />}
+            <circle cx={cx + side * .95} cy="22.4" r=".9" fill="#ffffff" />
+          </g>
+        );
+      })}
+      {/* Prominent glossy dog nose + clean smile & pink tongue */}
+      <ellipse cx="36" cy="30.8" rx="3.9" ry="2.6" fill={coat === 'golden' ? '#3a2419' : '#201e22'} />
+      <ellipse cx="34.8" cy="29.9" rx="1.05" ry=".5" fill="#ffffff70" />
+      {(coat === 'golden' || coat === 'samoyed' || coat === 'husky' || coat === 'corgi') && (
+        <path d="M33.4 35.6 C33.2 40.2 38.8 40.2 38.6 35.6 Z" fill="#ff88a6" stroke="#b84b6b" strokeWidth="0.7" />
+      )}
+      <path d={coat === 'samoyed'
+        ? 'M36 33.2 L36 35.4 M29.5 34.0 Q32.8 37.8 36 35.4 Q39.2 37.8 42.5 34.0'
+        : 'M36 33.2 L36 35.4 M30.6 34.7 Q33.3 37.4 36 35.4 Q38.7 37.4 41.4 34.7'}
+        fill="none" stroke={coat === 'samoyed' ? '#242327' : rim} strokeWidth="1.25" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function EyePreview({ style, coat = 'black' }) {
   const bg = {
     black: '#161615',
@@ -178,9 +309,15 @@ function EyePreview({ style, coat = 'black' }) {
     ragdoll: '#f8f4ee',
     orange: '#f3b165',
     calico: '#f8f4ed',
+    husky: '#fbfaf7',
+    shiba: '#e69b50',
+    corgi: '#e9a354',
+    golden: '#f1c476',
+    samoyed: '#fbfaf7',
+    border: '#262930',
   }[coat] ?? '#161615';
-  const rim = coat === 'black' ? '#fbf8ee' : '#584b44';
-  const eyeRim = coat === 'black' || coat === 'siamese' ? 'none' : '#4a3d36';
+  const rim = coat === 'black' || coat === 'border' ? '#fbf8ee' : '#584b44';
+  const eyeRim = coat === 'black' || coat === 'siamese' || coat === 'border' ? 'none' : '#4a3d36';
   const gradId = `eye-grad-${style}`;
   return (
     <svg className="wardrobe-preview-svg" viewBox="0 0 64 36" aria-hidden="true">
@@ -349,7 +486,13 @@ function KeyboardPreview({ style }) {
 
 function WardrobePanel({ catCoat, eyeStyle, headphoneStyle, keyboardStyle, musicMode,
   onCatCoat, onEyeStyle, onHeadphoneStyle, onKeyboardStyle, onToggleMusic, onClose }) {
+  const [speciesTab, setSpeciesTab] = useState(() => (isDogCoat(catCoat) ? 'dog' : 'cat'));
+  useEffect(() => {
+    setSpeciesTab(isDogCoat(catCoat) ? 'dog' : 'cat');
+  }, [catCoat]);
   const visibleEyeStyles = getEyeStylesForCoat(catCoat);
+  const showingDogs = speciesTab === 'dog';
+  const petOptions = showingDogs ? dogCoatOptions : catCoatOptions;
   return (
     <section className="window-menu wardrobe-menu" role="dialog" aria-label="装扮">
       <header className="menu-header" data-tauri-drag-region>
@@ -363,14 +506,19 @@ function WardrobePanel({ catCoat, eyeStyle, headphoneStyle, keyboardStyle, music
       <div className="wardrobe-body">
         <div className="wardrobe-section">
           <div className="wardrobe-section-head">
-            <h2>猫咪</h2>
-            <span className="wardrobe-current">{midnightCatCoats[catCoat]?.label}</span>
+            <div className="wardrobe-species-tabs" role="tablist" aria-label="宠物类型">
+              <button type="button" role="tab" aria-selected={!showingDogs}
+                className="wardrobe-species-tab" onClick={() => setSpeciesTab('cat')}>猫咪</button>
+              <button type="button" role="tab" aria-selected={showingDogs}
+                className="wardrobe-species-tab" onClick={() => setSpeciesTab('dog')}>狗狗</button>
+            </div>
+            <span className="wardrobe-current">{midnightPetCoats[catCoat]?.label}</span>
           </div>
-          <div className="wardrobe-grid" role="radiogroup" aria-label="猫咪品种">
-            {catCoatOptions.map(([key, { label }]) => (
+          <div className="wardrobe-grid" role="radiogroup" aria-label={showingDogs ? '狗狗品种' : '猫咪品种'}>
+            {petOptions.map(([key, { label }]) => (
               <button key={key} type="button" role="radio" aria-checked={catCoat === key}
                 className="wardrobe-card" onClick={() => onCatCoat(key)}>
-                <CatCoatPreview coat={key} />
+                {showingDogs ? <DogCoatPreview coat={key} /> : <CatCoatPreview coat={key} />}
                 <span>{label}</span>
               </button>
             ))}
@@ -667,8 +815,9 @@ function WindowMenu({ pinned, pinBusy, background, backgroundBusy, rewardsEnable
           <span className="switch-track" aria-hidden="true" />
         </button>
         <button type="button" className="switch-row" role="switch" aria-checked={rewardsEnabled}
-          onClick={onToggleRewards} title="开启攒鱼、怒气与喂食玩法">
-          <span>攒鱼与怒气</span>
+          onClick={onToggleRewards}
+          title={isDogCoat(catCoat) ? '开启攒骨头、怒气与喂食玩法' : '开启攒鱼、怒气与喂食玩法'}>
+          <span>{isDogCoat(catCoat) ? '攒骨头与怒气' : '攒鱼与怒气'}</span>
           <span className="switch-track" aria-hidden="true" />
         </button>
         <button type="button" className="switch-row" role="switch" aria-checked={musicMode}
@@ -677,10 +826,10 @@ function WindowMenu({ pinned, pinBusy, background, backgroundBusy, rewardsEnable
           <span className="switch-track" aria-hidden="true" />
         </button>
         <button type="button" className="switch-row nav-row" onClick={onOpenWardrobe}
-          title="打开装扮弹窗，自定义猫咪、眼睛和耳机样式">
+          title="打开装扮弹窗，自定义猫咪/狗狗、眼睛、耳机与键鼠样式">
           <span>装扮</span>
           <span className="nav-summary">
-            <span>{midnightCatCoats[catCoat]?.label} · {midnightEyeStyles[eyeStyle]?.label}</span>
+            <span>{midnightPetCoats[catCoat]?.label} · {midnightEyeStyles[eyeStyle]?.label}</span>
             <IconChevronRight size={15} stroke={1.9} aria-hidden="true" />
           </span>
         </button>
@@ -983,7 +1132,7 @@ function App() {
   }
 
   function updateCatCoat(next) {
-    if (next === catCoatRef.current || !Object.hasOwn(midnightCatCoats, next)) return;
+    if (next === catCoatRef.current || !Object.hasOwn(midnightPetCoats, next)) return;
     catCoatRef.current = next;
     setCatCoat(next);
     sceneControls.current?.setCatCoat(next);
