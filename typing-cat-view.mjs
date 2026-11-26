@@ -819,7 +819,11 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   }
 
   function followPointer(x, y) {
-    if (pet || carried || rewards.dragging) return;
+    if (pet || carried) return;
+    if (rewards.dragging) {
+      cat.setPointer(x, y);
+      return;
+    }
     if (!heldKeys.size) lastKeyAt = -Infinity;
     cat.setPointer(x, y);
     lastInput = lastMouseMove = clock();
@@ -1014,7 +1018,17 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       return;
     }
     const fedAge = time - fedAt;
-    const feeding = MathUtils.smoothstep(fedAge, 0, .14) * (1 - MathUtils.smoothstep(fedAge, .75, 1.25));
+    const feeding = Number.isFinite(fedAge)
+      ? MathUtils.smoothstep(fedAge, 0, .12) * (1 - MathUtils.smoothstep(fedAge, 1.15, 1.58))
+      : 0;
+    // Phase 1 (0..0.24s): bright starry-eyed first bite; Phase 2 (0.20..1.38s): blissful ^ ^ happy closed eyes
+    const eatSquint = feeding > 0
+      ? MathUtils.smoothstep(fedAge, .18, .32) * (1 - MathUtils.smoothstep(fedAge, 1.12, 1.48))
+      : 0;
+    const eatChew = feeding > 0 ? (.34 + .26 * Math.sin(fedAge * 13.5)) * feeding : 0;
+    const eatNod = feeding > 0 ? (.07 + .05 * Math.sin(fedAge * 13.5)) * feeding : 0;
+    const eatSway = feeding > 0 ? .11 * Math.sin(fedAge * 6.5) * feeding : 0;
+    const eager = !striking && rewards.dragging ? 1 : 0;
     if (musicMode && !striking) {
       const beat = time * 5.8;
       const sway = Math.sin(beat);
@@ -1024,12 +1038,14 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
         tension: 0,
         doze: 0,
         happy: 1,
-        squint: Math.max(musicBlink, .64 * feeding),
-        blush: Math.max(.62, .76 * feeding),
-        mouth: (.33 + .21 * Math.sin(time * 24)) * feeding,
-        yaw: .10 * sway,
-        pitch: .18 * typingBlend + .02 + .10 * bob + .04 * keyBounce,
-        roll: .19 * sway,
+        eating: feeding,
+        eager,
+        squint: Math.max(musicBlink, eatSquint),
+        blush: Math.max(.62, .92 * feeding, .45 * eager),
+        mouth: eatChew,
+        yaw: .10 * sway * (1 - .45 * feeding),
+        pitch: .18 * typingBlend + .02 + .10 * bob + .04 * keyBounce + eatNod,
+        roll: .19 * sway * (1 - .45 * feeding) + eatSway,
       });
       return;
     }
@@ -1037,13 +1053,15 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     cat.setReaction({
       tension: striking ? 0 : Math.max(tension, irritation),
       doze: napBlend,
-      happy: 0,
-      squint: Math.max(petBlend, napBlend, .64 * feeding),
-      blush: Math.max(.92 * petBlend, .76 * feeding),
-      mouth: (.33 + .21 * Math.sin(time * 24)) * feeding,
+      happy: Math.max(feeding, .75 * eager),
+      eating: feeding,
+      eager,
+      squint: Math.max(petBlend, napBlend, eatSquint),
+      blush: Math.max(.92 * petBlend, .92 * feeding, .48 * eager),
+      mouth: Math.max(eatChew, .14 * eager),
       yaw: .055 * Math.sin(time * 22) * tension,
-      pitch: .26 * typingBlend + .18 * tension + .045 * keyBounce + (.21 + .028 * breath) * napBlend + .15 * strikeBlend,
-      roll: .037 * Math.sin(time * 17) * tension - .15 * napBlend,
+      pitch: .26 * typingBlend + .18 * tension + .045 * keyBounce + (.21 + .028 * breath) * napBlend + .15 * strikeBlend + eatNod,
+      roll: .037 * Math.sin(time * 17) * tension - .15 * napBlend + eatSway,
     });
   }
 
@@ -1168,7 +1186,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     strikeBlend = MathUtils.damp(strikeBlend, Number(striking && !carried), striking && !carried ? 4.5 : 10, seconds);
     const breath = Math.sin(time * 2.1);
     const crouchBlend = Math.max(strikeBlend, napBlend) * (1 - carryBlend);
-    if (!pet && !carried && !typingActive && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
+    if (!pet && !carried && !rewards.dragging && !typingActive && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
     animateReaction(time, seconds, breath);
     cat.setCrouch?.(crouchBlend);
     cat.update(seconds);

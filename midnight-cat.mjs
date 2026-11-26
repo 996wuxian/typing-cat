@@ -805,6 +805,8 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   const isDog = coat.species === 'dog';
   const carrySquint = face.carrySquint ?? 0;
   const carry = face.carry ?? 0;
+  const eating = face.eating ?? 0;
+  const eager = face.eager ?? 0;
   const closed = Math.max(face.closed, face.crying, carrySquint);
   const lid = MathUtils.smoothstep(closed, .62, .94);
   const { x, y, angry } = eyeOffset;
@@ -821,8 +823,9 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   }
 
   if (lid < 1) {
-    const rw = rx * (1 + (bigBlack ? .04 : .06) * angry + .05 * carry);
-    const rh = ry * (1 - .86 * closed) * (1 - (bigBlack ? .06 : .08) * angry) * (1 + .06 * carry);
+    const delightBoost = Math.max(eager, eating * (1 - lid));
+    const rw = rx * (1 + (bigBlack ? .04 : .06) * angry + .05 * carry + .045 * delightBoost);
+    const rh = ry * (1 - .86 * closed) * (1 - (bigBlack ? .06 : .08) * angry) * (1 + .06 * carry + .055 * delightBoost);
     const tremorX = .55 * Math.sin(elapsed * 29 + side * 1.4) * carry;
     const tremorY = .40 * Math.cos(elapsed * 23 - side) * carry;
     const pupilScale = 1 - .20 * carry;
@@ -922,6 +925,14 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
         }
       }
     }
+    if (delightBoost > .12 && closed < .52) {
+      const starPulse = .85 + .22 * Math.sin(elapsed * 12 + side * 1.3);
+      paint.save();
+      paint.globalAlpha = (1 - lid) * MathUtils.smoothstep(delightBoost, .12, .55);
+      drawSparkle(paint, side * 2.8, -2.6, 4.3 * starPulse, elapsed * .6 * side, '#ffe278');
+      drawSparkle(paint, -side * 3.4, 2.8, 2.3 * starPulse, -elapsed * .5 * side, '#ffffff');
+      paint.restore();
+    }
     paint.restore();
     if (happyLift && coat.eyeRim && eyeStyle !== 'ring') {
       paint.save();
@@ -944,6 +955,21 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       paint.lineTo(-side * 7.0, .6);
       paint.lineTo(side * 8.4, 6.6);
       stroke(paint, coat.lid, 2.25);
+    } else if (eating > .22 && face.crying <= .02) {
+      // Blissful curved ^ ^ yummy-eating smiling eyes + joyful cheek crinkle
+      const bounce = .7 * Math.sin(elapsed * 13);
+      paint.moveTo(-10.8, 3.2 + bounce * .4);
+      paint.quadraticCurveTo(0, -8.4 - bounce * .5, 10.8, 3.2 + bounce * .4);
+      stroke(paint, coat.lid, 2.35);
+      // Tiny joyful sparkle near outer corner while savoring food
+      const spAlpha = lid * MathUtils.smoothstep(eating, .22, .65);
+      if (spAlpha > .05) {
+        const spScale = .78 + .28 * Math.sin(elapsed * 9 + side * 1.6);
+        paint.save();
+        paint.globalAlpha = spAlpha;
+        drawSparkle(paint, side * 12.6, -5.4, 3.2 * spScale, .2 * side, '#ffdc68');
+        paint.restore();
+      }
     } else if (face.happy > .35 && face.crying <= .02) {
       paint.moveTo(-10.2, 2.4);
       paint.quadraticCurveTo(0, -6.2, 10.2, 2.4);
@@ -1851,8 +1877,8 @@ export function createMidnightCat(floatingLayer, {
   const pad = new Vector3(0, -.050, .043);
   const pointer = new Vector2();
   const gaze = new Vector2();
-  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0, happy: 0, carry: 0, carrySquint: 0 };
-  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0, happy: 0, carry: 0, carrySquint: 0 };
+  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0, happy: 0, carry: 0, carrySquint: 0, eating: 0, eager: 0 };
+  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0, happy: 0, carry: 0, carrySquint: 0, eating: 0, eager: 0 };
   const anchor = new Vector3();
   const ground = new Vector2();
   let scale = 1;
@@ -2068,8 +2094,8 @@ export function createMidnightCat(floatingLayer, {
       }
     },
     setReaction({ tension = 0, squint = 0, yaw = 0, pitch = 0, roll = 0, blush = 0, mouth = 0,
-      crying = 0, doze = 0, happy = 0, carry = 0, carrySquint = 0 } = {}) {
-      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze, happy, carry, carrySquint });
+      crying = 0, doze = 0, happy = 0, carry = 0, carrySquint = 0, eating = 0, eager = 0 } = {}) {
+      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze, happy, carry, carrySquint, eating, eager });
     },
     update(seconds) {
       elapsed += seconds;
@@ -2122,8 +2148,8 @@ export function createMidnightCat(floatingLayer, {
       tapLean = MathUtils.damp(tapLean, leanTarget * tapEnergy, 16, seconds);
       tailFlick = MathUtils.damp(tailFlick, 0, 11, seconds);
       const isDog = isDogCoat(catCoat);
-      const dogHappyBoost = isDog ? (1.5 + 2.8 * Math.max(reaction.happy, reaction.blush) + 3.2 * tapEnergy) : 0;
-      tailWag += seconds * (2.3 + dogHappyBoost + 4.8 * tapEnergy + 3.2 * reaction.tension + 2.8 * musicBlend * (1 - crouch) + 4.2 * carryBlend);
+      const dogHappyBoost = isDog ? (1.5 + 2.8 * Math.max(reaction.happy, reaction.blush, reaction.eating, reaction.eager) + 3.2 * tapEnergy) : 0;
+      tailWag += seconds * (2.3 + dogHappyBoost + 4.8 * tapEnergy + 3.2 * reaction.tension + 2.8 * musicBlend * (1 - crouch) + 3.8 * reaction.eating + 4.2 * carryBlend);
       const wantTongue = isDog && !carried && carryBlend < .12 && reaction.doze < .25 && reaction.tension < .25 && reaction.crying < .15
         ? Math.max(
           reaction.happy * .96,
@@ -2156,6 +2182,8 @@ export function createMidnightCat(floatingLayer, {
       face.closed = MathUtils.damp(face.closed, reaction.squint, 13, seconds);
       face.crying = MathUtils.damp(face.crying, reaction.crying, 12, seconds);
       face.happy = MathUtils.damp(face.happy, reaction.happy, 11, seconds);
+      face.eating = MathUtils.damp(face.eating, reaction.eating, 13, seconds);
+      face.eager = MathUtils.damp(face.eager, reaction.eager, 13, seconds);
       face.carry = MathUtils.damp(face.carry, Math.max(reaction.carry, carryBlend), 13, seconds);
       const targetCarrySquint = Math.max(reaction.carrySquint,
         carryBlend * MathUtils.smoothstep(carryMotionEnergy, .48, .88));
