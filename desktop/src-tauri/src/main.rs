@@ -19,7 +19,8 @@ use std::process::Command;
 async fn begin_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
     #[cfg(windows)]
     {
-        use std::time::Duration;
+        use std::time::{Duration, Instant};
+        use tauri::Emitter;
         use windows_sys::Win32::{
             Foundation::POINT,
             UI::{
@@ -29,6 +30,7 @@ async fn begin_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
         };
 
         let start_pos = window.outer_position().map_err(|e| e.to_string())?;
+        let scale_factor = window.scale_factor().unwrap_or(1.0).max(0.5);
         let mut start_cursor = POINT { x: 0, y: 0 };
         if unsafe { GetCursorPos(&mut start_cursor) } == 0 {
             return Err("Could not read cursor position".to_string());
@@ -39,11 +41,16 @@ async fn begin_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
 
         tauri::async_runtime::spawn_blocking(move || {
             let mut last = start_cursor;
+            let mut pending_dx = 0i32;
+            let mut pending_dy = 0i32;
+            let mut last_emit = Instant::now();
             while unsafe { GetAsyncKeyState(i32::from(VK_LBUTTON)) } < 0 {
                 let mut cur = POINT { x: 0, y: 0 };
                 if unsafe { GetCursorPos(&mut cur) } != 0
                     && (cur.x != last.x || cur.y != last.y)
                 {
+                    pending_dx += cur.x - last.x;
+                    pending_dy += cur.y - last.y;
                     let next_x = start_pos.x + (cur.x - start_cursor.x);
                     let next_y = start_pos.y + (cur.y - start_cursor.y);
                     if window
@@ -53,6 +60,16 @@ async fn begin_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
                         break;
                     }
                     last = cur;
+                }
+                if (pending_dx != 0 || pending_dy != 0)
+                    && last_emit.elapsed() >= Duration::from_millis(16)
+                {
+                    let dx = f64::from(pending_dx) / scale_factor;
+                    let dy = f64::from(pending_dy) / scale_factor;
+                    let _ = window.emit_to(window.label(), "window-drag-motion", (dx, dy));
+                    pending_dx = 0;
+                    pending_dy = 0;
+                    last_emit = Instant::now();
                 }
                 std::thread::sleep(Duration::from_millis(8));
             }

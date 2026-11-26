@@ -863,6 +863,8 @@ function App() {
   const sceneControls = useRef(null);
   const lastDesktopPointer = useRef(null);
   const dragPress = useRef(null);
+  const draggingRef = useRef(false);
+  const previewDragRef = useRef(null);
   const [status, setStatus] = useState(loadingStatus);
   const [windowError, setWindowError] = useState('');
   const [controlsOpen, setControlsOpen] = useState(false);
@@ -1147,13 +1149,19 @@ function App() {
     const buttons = listen('desktop-mouse-button', ({ payload }) => {
       if (Array.isArray(payload)) sceneControls.current?.playDesktopMouseButton(...payload);
     });
-    Promise.all([registration, buttons]).then(() => {
+    const dragMotion = listen('window-drag-motion', ({ payload }) => {
+      if (Array.isArray(payload) && payload.length === 2) {
+        sceneControls.current?.pushCarryMotion(payload[0], payload[1]);
+      }
+    });
+    Promise.all([registration, buttons, dragMotion]).then(() => {
       if (active) return invoke('start_desktop_pointer');
     }).catch(error => console.error(error));
     return () => {
       active = false;
       registration.then(unlisten => unlisten(), () => {});
       buttons.then(unlisten => unlisten(), () => {});
+      dragMotion.then(unlisten => unlisten(), () => {});
     };
   }, []);
 
@@ -1176,12 +1184,23 @@ function App() {
       clearTimeout(dragPress.current.timer);
       dragPress.current = null;
     }
-    if (target.current) delete target.current.dataset.dragging;
+    if (previewDragRef.current) {
+      previewDragRef.current = null;
+      draggingRef.current = false;
+      sceneControls.current?.setCarried(false);
+    }
+    if (!draggingRef.current && target.current) delete target.current.dataset.dragging;
   }
 
   useEffect(() => {
-    if (!nativeWindow) return;
     function handleMove(event) {
+      const preview = previewDragRef.current;
+      if (preview && preview.id === event.pointerId) {
+        sceneControls.current?.pushCarryMotion(event.clientX - preview.x, event.clientY - preview.y);
+        preview.x = event.clientX;
+        preview.y = event.clientY;
+        return;
+      }
       const pending = dragPress.current;
       if (!pending || pending.id !== event.pointerId) return;
       if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > longPressMoveLimit) {
@@ -1201,22 +1220,31 @@ function App() {
     };
   }, []);
 
-  function startNativeDrag() {
+  function startNativeDrag(pointerId, clientX, clientY) {
+    if (draggingRef.current) return;
+    draggingRef.current = true;
     if (target.current) target.current.dataset.dragging = 'true';
     sceneControls.current?.cancelPointerInteractions();
+    sceneControls.current?.setCarried(true);
+    if (!nativeWindow) {
+      previewDragRef.current = { id: pointerId, x: clientX, y: clientY };
+      return;
+    }
     invoke('begin_window_drag').catch(reportWindowError).finally(() => {
+      draggingRef.current = false;
+      sceneControls.current?.setCarried(false);
       if (target.current) delete target.current.dataset.dragging;
     });
   }
 
   function handleStagePointerDown(event) {
     if (controlsOpen) setControlsOpen(false);
-    if (!nativeWindow || event.button !== 0 || event.target.closest('.fish-bank')) return;
+    if (event.button !== 0 || event.target.closest('.fish-bank')) return;
     if (event.altKey) {
       clearLongPress();
       event.preventDefault();
       event.stopPropagation();
-      startNativeDrag();
+      startNativeDrag(event.pointerId, event.clientX, event.clientY);
       return;
     }
     clearLongPress();
@@ -1225,7 +1253,7 @@ function App() {
     const timer = setTimeout(() => {
       dragPress.current = null;
       if (target.current?.dataset.petting === 'true') return;
-      startNativeDrag();
+      startNativeDrag(id, x, y);
     }, longPressDelay);
     dragPress.current = { id, x, y, timer };
   }

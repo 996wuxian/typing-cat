@@ -9,7 +9,6 @@ import { createMidnightCat, getEyeStylesForCoat, isEyeStyleAllowed, midnightCatC
 export { getEyeStylesForCoat, isEyeStyleAllowed, midnightCatCoats, midnightEyeStyles, midnightHeadphoneStyles };
 import { createTypingPaws } from './typing-paws.mjs';
 import { keyIconElement, keyIcons, paintKeyIcon } from './typing-key-icons.mjs';
-import { createMeowPlayer } from './cat-meow.mjs';
 import { createCatRewards } from './typing-cat-rewards.mjs';
 
 function letters(value) {
@@ -473,16 +472,18 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   }
   const { board, keys, applyStyle: applyKeyboardStyle } = createKeyboard(preset.keyboard);
   const mouse = createMouse(preset.mouse);
+  const boardBaseScale = board.scale.clone();
+  const mouseBaseScale = mouse.body.scale.clone();
   const mouseX = mouse.body.position.x;
   const mousePaw = mouseX < 0 ? 'left' : 'right';
   const keyboardPaw = mousePaw === 'right' ? 'left' : 'right';
   const paws = createTypingPaws(cat.model, mousePaw, cat.pawContact);
+  const catShadow = makeShadow(.67, .67, 0, -.05, .42);
   const keyboardShadow = makeShadow(.68 * board.scale.x, .25 * board.scale.z,
     board.position.x, board.position.z + .007, .30);
   keyboardShadow.rotation.z = board.rotation.y;
   const mouseShadow = makeShadow(.16, .17, mouseX, mouseHomeZ, .28);
-  scene.add(makeShadow(.67, .67, 0, -.05, .42),
-    keyboardShadow, mouseShadow, cat.model, board, mouse.body);
+  scene.add(catShadow, keyboardShadow, mouseShadow, cat.model, board, mouse.body);
 
   let viewWidth = 0;
   let viewHeight = 0;
@@ -524,7 +525,6 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   const headCenter = new Vector3();
   const headEdge = new Vector3();
   const feedPoint = new Vector2();
-  const meow = createMeowPlayer(signal);
   const petEffects = [];
   let petHeartCount = 0;
   const heartSvg = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.4C9.6 17.1 2.2 12.1 2.2 7.1C2.2 4.3 4.3 2.4 6.8 2.4C8.4 2.4 9.5 3.3 10 4.6C10.5 3.3 11.6 2.4 13.2 2.4C15.7 2.4 17.8 4.3 17.8 7.1C17.8 12.1 10.4 17.1 10 17.4Z"/><circle cx="6.2" cy="6.1" r="1.15" class="pet-heart-shine"/></svg>';
@@ -564,6 +564,9 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   let moodBlend = 0;
   let pet = null;
   let petBlend = 0;
+  let carried = false;
+  let carryBlend = 0;
+  let carriedAt = -Infinity;
   let musicMode = Boolean(initialMusicMode);
   let nextMusicNote = 0;
   if (musicMode) cat.setMusicMode?.(true);
@@ -671,6 +674,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   }
 
   function pressKey(code, time, source = null) {
+    if (carried) return false;
     const keyCode = code === 'Delete' ? 'Backspace' : code;
     const key = keys.get(keyCode);
     if (!key) return false;
@@ -753,6 +757,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   }
 
   function pressMouse(side, token) {
+    if (carried) return;
     const button = mouse.buttons.get(side);
     if (!button || mousePresses.has(token)) return;
     mousePresses.set(token, side);
@@ -809,7 +814,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   }
 
   function followPointer(x, y) {
-    if (pet || rewards.dragging) return;
+    if (pet || carried || rewards.dragging) return;
     if (!heldKeys.size) lastKeyAt = -Infinity;
     cat.setPointer(x, y);
     lastInput = lastMouseMove = clock();
@@ -935,6 +940,28 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
   function animateReaction(time, seconds, breath) {
     const petting = Boolean(pet);
     const striking = rewards.striking;
+    if (carried || carryBlend > .02) {
+      const carryAge = Math.max(0, time - carriedAt);
+      const squintCycle = (carryAge + 1.45) % 2.45;
+      const squintBurst = MathUtils.smoothstep(squintCycle, 1.55, 1.72)
+        * (1 - MathUtils.smoothstep(squintCycle, 2.08, 2.28));
+      const squirm = Math.sin(carryAge * 7.2);
+      const nod = Math.sin(carryAge * 5.4);
+      cat.setReaction({
+        tension: 0,
+        doze: 0,
+        happy: 0,
+        carry: carryBlend,
+        carrySquint: squintBurst * carryBlend,
+        squint: 0,
+        blush: .56 * carryBlend,
+        mouth: 0,
+        yaw: .09 * squirm * carryBlend,
+        pitch: (-.06 + .05 * nod) * carryBlend,
+        roll: (.10 * Math.sin(carryAge * 4.3) + .04 * squirm) * carryBlend,
+      });
+      return;
+    }
     const moodActive = !petting && !striking && time < moodUntil;
     moodBlend = MathUtils.damp(moodBlend, moodActive ? 1 : 0, moodActive ? 12 : 7, seconds);
     tension = MathUtils.damp(tension, !petting && !striking && !moodActive && time < tenseUntil ? 1 : 0, 9, seconds);
@@ -946,10 +973,12 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
         pet.nextHeart = time + .52;
       }
       if (time >= pet.nextMeow) {
-        const duration = meow.play();
-        if (duration) showPetEffect(time, false);
-        pet.nextMeow = time + (duration ? Math.max(2.35, duration + .55) : .16);
+        showPetEffect(time, false);
+        pet.meowAt = time;
+        pet.nextMeow = time + 2.4;
       }
+      const meowAge = time - (pet.meowAt ?? -Infinity);
+      const petMouth = meowAge >= 0 && meowAge < .42 ? Math.sin(Math.PI * meowAge / .42) * .62 : 0;
       const phase = Math.floor(elapsed / 1.28) % 3;
       const sway = Math.sin(elapsed * 4.8 + pet.offsetX * 1.8);
       const swipe = MathUtils.clamp(pet.offsetX * 1.5, -.65, .65);
@@ -959,7 +988,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       cat.setReaction({
         squint: petBlend,
         blush: .92 * petBlend,
-        mouth: meow.mouthAmount(),
+        mouth: petMouth,
         yaw: (.15 * swipe + (phase === 0 ? .15 * sway : 0)) * petBlend,
         pitch: (nod - pet.offsetY * .10) * petBlend,
         roll: tilt * petBlend,
@@ -992,7 +1021,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
         happy: 1,
         squint: Math.max(musicBlink, .64 * feeding),
         blush: Math.max(.62, .76 * feeding),
-        mouth: Math.max(meow.mouthAmount(), (.33 + .21 * Math.sin(time * 24)) * feeding),
+        mouth: (.33 + .21 * Math.sin(time * 24)) * feeding,
         yaw: .10 * sway,
         pitch: .18 * typingBlend + .02 + .10 * bob + .04 * keyBounce,
         roll: .19 * sway,
@@ -1006,7 +1035,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       happy: 0,
       squint: Math.max(petBlend, napBlend, .64 * feeding),
       blush: Math.max(.92 * petBlend, .76 * feeding),
-      mouth: Math.max(meow.mouthAmount(), (.33 + .21 * Math.sin(time * 24)) * feeding),
+      mouth: (.33 + .21 * Math.sin(time * 24)) * feeding,
       yaw: .055 * Math.sin(time * 22) * tension,
       pitch: .26 * typingBlend + .18 * tension + .045 * keyBounce + (.21 + .028 * breath) * napBlend + .15 * strikeBlend,
       roll: .037 * Math.sin(time * 17) * tension - .15 * napBlend,
@@ -1038,9 +1067,8 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       const time = clock();
       pet = {
         id: event.pointerId, started: time, startX: pointer.x, startY: pointer.y, offsetX: 0, offsetY: 0,
-        nextHeart: time + .16, nextMeow: time + .48,
+        nextHeart: time + .16, nextMeow: time + .48, meowAt: -Infinity,
       };
-      meow.unlock();
       stage.setPointerCapture(event.pointerId);
       stage.dataset.petting = 'true';
       lastInput = time;
@@ -1058,6 +1086,7 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     raycast.setFromCamera(pointer, camera);
     const hit = raycast.intersectObjects(hitTargets, false)[0]?.object.userData;
     if (hit?.keyCode && pressKey(hit.keyCode, time)) return;
+    if (!hit?.mouseButton && canFeedAt(event.clientX, event.clientY)) return;
     pressMouse(hit?.mouseButton ?? 'left', 'window:0');
   }, events);
   stage.addEventListener('contextmenu', event => event.preventDefault(), events);
@@ -1092,32 +1121,53 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
 
     if (musicMode && rewards.coolDown(seconds)) {
       lastInput = time;
-      resumeHeldPaws(time);
+      if (!carried) resumeHeldPaws(time);
     }
     const striking = rewards.striking;
-    if (!striking && !rewards.dragging && (pressedSide || mouseInUse(time))) {
+    if (!carried && !striking && !rewards.dragging && (pressedSide || mouseInUse(time))) {
       reserveMousePaw(time);
       paws.followMouse(mouseSurface(pressedSide), time, Boolean(pressedSide));
     }
+    carryBlend = MathUtils.damp(carryBlend, carried ? 1 : 0, carried ? 15 : 11, seconds);
+    const deskVisibility = 1 - MathUtils.smoothstep(carryBlend, 0, .52);
+    const deskShown = deskVisibility > .015;
+    board.visible = deskShown;
+    mouse.body.visible = deskShown;
+    keyboardShadow.visible = deskShown;
+    mouseShadow.visible = deskShown;
+    catShadow.visible = deskShown;
+    if (deskShown) {
+      const deskEase = deskVisibility * deskVisibility * (3 - 2 * deskVisibility);
+      const scaleFactor = .72 + .28 * deskEase;
+      const dropY = -(1 - deskEase) * .042;
+      board.scale.set(boardBaseScale.x * scaleFactor, boardBaseScale.y * scaleFactor, boardBaseScale.z * scaleFactor);
+      board.position.y = dropY;
+      mouse.body.scale.set(mouseBaseScale.x * scaleFactor, mouseBaseScale.y * scaleFactor, mouseBaseScale.z * scaleFactor);
+      mouse.body.position.y = dropY;
+      keyboardShadow.material.opacity = deskEase;
+      mouseShadow.material.opacity = deskEase;
+      catShadow.material.opacity = deskEase;
+    }
+
     const idleTime = time - lastInput;
-    const busy = Boolean(pet || heldKeys.size || mousePresses.size);
-    const napping = striking || (!busy && !musicMode && idleTime >= napDelay);
-    if (musicMode && !pet && !striking && time >= nextMusicNote) {
+    const busy = Boolean(pet || carried || heldKeys.size || mousePresses.size);
+    const napping = !carried && (striking || (!busy && !musicMode && idleTime >= napDelay));
+    if (musicMode && !pet && !carried && !striking && time >= nextMusicNote) {
       showPetEffect(time, 'note');
       nextMusicNote = time + .86;
     }
-    const typingActive = !pet && !striking && (heldKeys.size > 0 || time - lastKeyAt < .62);
+    const typingActive = !pet && !carried && !striking && (heldKeys.size > 0 || time - lastKeyAt < .62);
     typingBlend = MathUtils.damp(typingBlend, Number(typingActive), typingActive ? 14 : 7, seconds);
     keyBounce = MathUtils.damp(keyBounce, 0, 14, seconds);
     napBlend = MathUtils.damp(napBlend, napping ? 1 : 0, napping ? 3 : 16, seconds);
-    strikeBlend = MathUtils.damp(strikeBlend, Number(striking), striking ? 4.5 : 9, seconds);
+    strikeBlend = MathUtils.damp(strikeBlend, Number(striking && !carried), striking && !carried ? 4.5 : 10, seconds);
     const breath = Math.sin(time * 2.1);
-    const crouchBlend = Math.max(strikeBlend, napBlend);
-    if (!pet && !typingActive && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
+    const crouchBlend = Math.max(strikeBlend, napBlend) * (1 - carryBlend);
+    if (!pet && !carried && !typingActive && idleTime > .58) cat.setPointer(desktopPointer.x, desktopPointer.y);
     animateReaction(time, seconds, breath);
     cat.setCrouch?.(crouchBlend);
     cat.update(seconds);
-    paws.update(time, seconds, striking || napping);
+    paws.update(time, seconds, carried || striking || napping);
     const resting = busy ? 0 : MathUtils.smoothstep(idleTime, 1.8, 3);
     const bodyHeight = cat.setCrouch ? 1 : 1 - .34 * crouchBlend - .022 * keyBounce;
     cat.model.scale.y = bodyHeight + (.0032 * resting + .004 * napBlend) * breath;
@@ -1145,8 +1195,8 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
       MathUtils.clamp((projected.x * .5 + .5) * viewWidth, 28, viewWidth - 28),
       MathUtils.clamp((.5 - projected.y * .5) * viewHeight, 24, viewHeight - 24),
     );
-    const speechless = typingMood === 'speechless' ? moodBlend : 0;
-    const showAngerMark = rewards.enabled && !striking && !musicMode && (time < tenseUntil || rewards.anger > angerMarkThreshold);
+    const speechless = (typingMood === 'speechless' ? moodBlend : 0) * (1 - carryBlend);
+    const showAngerMark = rewards.enabled && !carried && !striking && !musicMode && (time < tenseUntil || rewards.anger > angerMarkThreshold);
     angerMarkBlend = MathUtils.damp(angerMarkBlend, Number(showAngerMark), showAngerMark ? 13 : 12, seconds);
     if (angerMarkBlend <= .02) {
       if (!angerMark.hidden) angerMark.hidden = true;
@@ -1238,6 +1288,34 @@ export async function mountTypingCat(stage, { signal, onStatus, scheme = 'midnig
     cancelPointerInteractions() {
       stopPetting();
       releaseWindowMouse();
+    },
+    setCarried(active) {
+      const next = Boolean(active);
+      if (next === carried) return;
+      carried = next;
+      const time = clock();
+      lastInput = time;
+      cat.setCarried?.(carried);
+      rewards.setSuppressed?.(carried);
+      if (carried) {
+        carriedAt = time;
+        stopPetting();
+        releaseWindowMouse();
+        releaseSource('foreground');
+        releaseSource('background');
+        tenseUntil = -Infinity;
+        moodUntil = -Infinity;
+        streak = { kind: null, count: 0, last: -Infinity };
+        for (const floater of floaters) {
+          if (floater.evictedAt === Infinity) floater.evictedAt = time;
+        }
+      } else {
+        resumeHeldPaws(time);
+      }
+    },
+    pushCarryMotion(dx, dy) {
+      if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+      cat.pushCarryMotion?.(dx, dy);
     },
     setCatCoat(coat) {
       cat.setCatCoat?.(coat);

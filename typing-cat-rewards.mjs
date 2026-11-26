@@ -106,6 +106,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   let drag = null;
   let hovered = false;
   let bankFocused = false;
+  let suppressed = false;
   let closeTimer;
   let saveTimer;
   let fullTimer;
@@ -158,7 +159,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   }
 
   function updateDrawer() {
-    if (enabled && (hovered || bankFocused || drag)) {
+    if (enabled && !suppressed && (hovered || bankFocused || drag)) {
       clearTimeout(closeTimer);
       closeTimer = undefined;
       drawer.dataset.open = 'true';
@@ -171,7 +172,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
   }
 
   function checkHover(event) {
-    if (!enabled || event.pointerType === 'touch') return;
+    if (!enabled || suppressed || event.pointerType === 'touch') return;
     const { clientX: x, clientY: y } = event;
     hovered = canFeedAt(x, y);
     if (!hovered && drawer.dataset.open === 'true') {
@@ -284,7 +285,7 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
     setEnabled(active) {
       if (enabled === active) return;
       enabled = active;
-      hud.hidden = !enabled;
+      hud.hidden = !enabled || suppressed;
       if (!enabled) {
         hovered = false;
         bankFocused = false;
@@ -298,6 +299,20 @@ export function createCatRewards(stage, { enabled = true, canFeedAt, onFeed }) {
         save();
       }
       render();
+    },
+    setSuppressed(active) {
+      const next = Boolean(active);
+      if (suppressed === next) return;
+      suppressed = next;
+      hud.hidden = !enabled || suppressed;
+      if (suppressed) {
+        hovered = false;
+        bankFocused = false;
+        cancelDrag();
+        clearTimeout(closeTimer);
+        closeTimer = undefined;
+        drawer.dataset.open = 'false';
+      }
     },
     positionAnger(x, y) {
       anger.style.left = `${x}px`;

@@ -52,12 +52,12 @@ const catCoatPalettes = {
     eyeRim: null, haunch: '#575450', armEdge: ['#3c3b38', '#64615d'],
   },
   siamese: {
-    body: '#f2e6d3', head: '#f2e6d3', tail: '#483228', arm: '#ebd9c1', paw: '#442f25',
+    body: '#f2e6d3', head: '#f2e6d3', tail: '#483228', arm: '#f2e6d3', paw: '#442f25',
     rim: '#5c463a', nose: '#38261f', whisker: '#453229', whiskerHalo: ivory, lid: '#443026', ring: '#443026',
-    eyeRim: '#4a352b', haunch: '#b79e85', armEdge: ['#8c6c56', '#3a271f'],
+    eyeRim: '#4a352b', haunch: '#b79e85', armEdge: ['#9d806a', '#3a271f'],
   },
   tabby: {
-    body: '#b0a69a', head: '#b0a69a', tail: '#a89e92', arm: '#aba195', paw: '#f9f5ee',
+    body: '#b0a69a', head: '#b0a69a', tail: '#a89e92', arm: '#b0a69a', paw: '#f9f5ee',
     rim: '#4c433c', nose: '#d48c90', whisker: '#433a34', whiskerHalo: ivory, lid: '#3f3631', ring: '#3f3631',
     eyeRim: '#483f39', haunch: '#5b5149', armEdge: ['#73685e', '#94887c'],
   },
@@ -67,7 +67,7 @@ const catCoatPalettes = {
     eyeRim: '#5a4c45', haunch: '#a6968c', armEdge: ['#c9beb6', '#9e9087'],
   },
   orange: {
-    body: '#f3b165', head: '#f3b165', tail: '#f0aa5c', arm: '#efaa5e', paw: '#fff8ed',
+    body: '#f3b165', head: '#f3b165', tail: '#f0aa5c', arm: '#f3b165', paw: '#fff8ed',
     rim: '#805230', nose: '#ea9498', whisker: '#6c4526', whiskerHalo: ivory, lid: '#643d20', ring: '#643d20',
     eyeRim: '#754b2b', haunch: '#c46c2a', armEdge: ['#cc7530', '#e09a56'],
   },
@@ -209,20 +209,50 @@ const lyingBodySegs = [
   [-8, -62, -21, -52, -30, -42],
 ];
 
-function createBodyPath(sleep) {
+const carriedBodyStart = [-21, -133];
+
+function buildCarriedBodySegs(kickLx, kickLy, kickRx, kickRy) {
+  return [
+    [-30, -110, -38, -80, -39, -46],
+    [-41, -18, -39, 1, -34 + kickLx * .4, 14 + kickLy * .3],
+    [-35 + kickLx, 25 + kickLy * .7, -32 + kickLx, 38 + kickLy, -22 + kickLx, 38 + kickLy],
+    [-13 + kickLx * .8, 38 + kickLy, -11 + kickLx * .4, 26 + kickLy * .5, -12, 12],
+    [-5, 16, 5, 16, 12, 12],
+    [11 + kickRx * .4, 26 + kickRy * .5, 13 + kickRx * .8, 38 + kickRy, 22 + kickRx, 38 + kickRy],
+    [32 + kickRx, 38 + kickRy, 35 + kickRx, 25 + kickRy * .7, 34 + kickRx * .4, 14 + kickRy * .3],
+    [39, 1, 41, -18, 39, -46],
+    [38, -80, 30, -110, 21, -133],
+  ];
+}
+
+function createBodyPath(sleep, carry = 0, kickLx = 0, kickLy = 0, kickRx = 0, kickRy = 0) {
   const path = new Path2D();
+  const baseStartX = MathUtils.lerp(standingBodyStart[0], lyingBodyStart[0], sleep);
+  const baseStartY = MathUtils.lerp(standingBodyStart[1], lyingBodyStart[1], sleep);
   path.moveTo(
-    MathUtils.lerp(standingBodyStart[0], lyingBodyStart[0], sleep),
-    MathUtils.lerp(standingBodyStart[1], lyingBodyStart[1], sleep),
+    MathUtils.lerp(baseStartX, carriedBodyStart[0], carry),
+    MathUtils.lerp(baseStartY, carriedBodyStart[1], carry),
   );
+  const carriedSegs = carry > .002 ? buildCarriedBodySegs(kickLx, kickLy, kickRx, kickRy) : null;
   for (let i = 0; i < standingBodySegs.length; i++) {
     const a = standingBodySegs[i];
     const b = lyingBodySegs[i];
-    path.bezierCurveTo(
-      MathUtils.lerp(a[0], b[0], sleep), MathUtils.lerp(a[1], b[1], sleep),
-      MathUtils.lerp(a[2], b[2], sleep), MathUtils.lerp(a[3], b[3], sleep),
-      MathUtils.lerp(a[4], b[4], sleep), MathUtils.lerp(a[5], b[5], sleep),
-    );
+    let x1 = MathUtils.lerp(a[0], b[0], sleep);
+    let y1 = MathUtils.lerp(a[1], b[1], sleep);
+    let x2 = MathUtils.lerp(a[2], b[2], sleep);
+    let y2 = MathUtils.lerp(a[3], b[3], sleep);
+    let x3 = MathUtils.lerp(a[4], b[4], sleep);
+    let y3 = MathUtils.lerp(a[5], b[5], sleep);
+    if (carriedSegs) {
+      const c = carriedSegs[i];
+      x1 = MathUtils.lerp(x1, c[0], carry);
+      y1 = MathUtils.lerp(y1, c[1], carry);
+      x2 = MathUtils.lerp(x2, c[2], carry);
+      y2 = MathUtils.lerp(y2, c[3], carry);
+      x3 = MathUtils.lerp(x3, c[4], carry);
+      y3 = MathUtils.lerp(y3, c[5], carry);
+    }
+    path.bezierCurveTo(x1, y1, x2, y2, x3, y3);
   }
   path.closePath();
   return path;
@@ -246,6 +276,7 @@ headShape.closePath();
 const tailLengths = [20, 20, 19, 18, 17];
 const tailRestRel = [.06, -.44, -.56, -.14, .20];
 const tailSleepRel = [.26, .08, -.52, -.78, -.68];
+const tailCarryRel = [.74, .26, -.54, -.76, -.64];
 const tailWindRel = [-.10, -.50, -.58, -.20, .14];
 const tailHitInit = [.41, .73, .83, .71, .39];
 const tailMoods = [
@@ -479,7 +510,9 @@ function resolveFaceGaze(gaze, tension, closed) {
 }
 
 function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
-  const closed = Math.max(face.closed, face.crying);
+  const carrySquint = face.carrySquint ?? 0;
+  const carry = face.carry ?? 0;
+  const closed = Math.max(face.closed, face.crying, carrySquint);
   const lid = MathUtils.smoothstep(closed, .62, .94);
   const { x, y, angry } = eyeOffset;
   const bigBlack = eyeStyle === 'xiaohei' || eyeStyle === 'starry' || eyeStyle === 'glossy';
@@ -490,8 +523,11 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   paint.translate(side * ((bigBlack ? 18.8 : 18.2) - 1.1 * angry) + x, y);
 
   if (lid < 1) {
-    const rw = rx * (1 + (bigBlack ? .04 : .06) * angry);
-    const rh = ry * (1 - .86 * closed) * (1 - (bigBlack ? .06 : .08) * angry);
+    const rw = rx * (1 + (bigBlack ? .04 : .06) * angry + .05 * carry);
+    const rh = ry * (1 - .86 * closed) * (1 - (bigBlack ? .06 : .08) * angry) * (1 + .06 * carry);
+    const tremorX = .55 * Math.sin(elapsed * 29 + side * 1.4) * carry;
+    const tremorY = .40 * Math.cos(elapsed * 23 - side) * carry;
+    const pupilScale = 1 - .20 * carry;
     paint.save();
     paint.globalAlpha = 1 - lid;
     if (angry > .01) {
@@ -503,7 +539,7 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       paint.clip();
       paint.rotate(-tilt);
     }
-    const happyLift = face.happy > .02 && face.crying <= .02 ? face.happy : 0;
+    const happyLift = face.happy > .02 && face.crying <= .02 && carry <= .02 ? face.happy : 0;
     const happyCheekY = happyLift ? MathUtils.lerp(rh + 9, 13.8, happyLift) : 0;
     if (happyLift) {
       paint.beginPath();
@@ -514,7 +550,7 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
 
     if (eyeStyle === 'ring') {
       paint.beginPath();
-      paint.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
+      paint.ellipse(tremorX * .6, tremorY * .6, rw, rh, 0, 0, Math.PI * 2);
       stroke(paint, coat.ring, 2.7 + .6 * angry);
     } else if (eyeStyle === 'lime') {
       paint.beginPath();
@@ -523,9 +559,10 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       fillShape(paint, '#daf478');
       paint.clip();
       const open = 1 - closed;
-      const pupilX = MathUtils.clamp(gaze.x * .44 * open, -4.2, 4.2);
-      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .36 + .7, 1.3, angry) * open, -3.4, 3.6);
-      ellipse(paint, pupilX, pupilY, 5.4 - 1.5 * angry, (7.8 - .7 * angry) * (1 - .72 * closed), black);
+      const pupilX = MathUtils.clamp(gaze.x * .44 * open + tremorX, -4.4, 4.4);
+      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .36 + .7, 1.3, angry) * open + tremorY, -3.6, 3.8);
+      ellipse(paint, pupilX, pupilY, (5.4 - 1.5 * angry) * pupilScale,
+        (7.8 - .7 * angry) * (1 - .72 * closed) * pupilScale, black);
       if (closed < .55) {
         ellipse(paint, pupilX - 1.7, pupilY - 2.6, 1.4, 1.4, '#f7ffdb');
       }
@@ -548,9 +585,10 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       paint.clip();
       ellipse(paint, 0, rh * .48, rw * .72, rh * .42, isAmber ? '#fff0ad88' : '#dcf4ff99');
       const open = 1 - closed;
-      const pupilX = MathUtils.clamp(gaze.x * .40 * open, -3.8, 3.8);
-      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .34 + .4, 1.1, angry) * open, -3.2, 3.4);
-      ellipse(paint, pupilX, pupilY, 5.8 - 1.3 * angry, (7.6 - .7 * angry) * (1 - .74 * closed), black);
+      const pupilX = MathUtils.clamp(gaze.x * .40 * open + tremorX, -4.0, 4.0);
+      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .34 + .4, 1.1, angry) * open + tremorY, -3.4, 3.6);
+      ellipse(paint, pupilX, pupilY, (5.8 - 1.3 * angry) * pupilScale,
+        (7.6 - .7 * angry) * (1 - .74 * closed) * pupilScale, black);
       if (closed < .55) {
         const shine = isAmber ? '#fffcef' : '#f4fcff';
         ellipse(paint, pupilX - 2.0, pupilY - 3.0, 1.85, 1.85, shine);
@@ -563,26 +601,26 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       fillShape(paint, ivory);
       paint.clip();
       const open = 1 - closed;
-      const pupilX = MathUtils.clamp(gaze.x * .28 * open, -2.8, 2.8);
-      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .25, .9, angry) * open, -2.4, 2.6);
-      const pupilRx = 9.0 - .9 * angry;
-      const pupilRy = (9.2 - .8 * angry) * (1 - .78 * closed);
+      const pupilX = MathUtils.clamp(gaze.x * .28 * open + tremorX, -3.1, 3.1);
+      const pupilY = MathUtils.clamp(MathUtils.lerp(gaze.y * .25, .9, angry) * open + tremorY, -2.7, 2.9);
+      const pupilRx = (9.0 - .9 * angry) * pupilScale;
+      const pupilRy = (9.2 - .8 * angry) * (1 - .78 * closed) * pupilScale;
       ellipse(paint, pupilX, pupilY, pupilRx, pupilRy, black);
       if (closed < .55) {
         const twinkleAmp = .1 + .08 * face.happy;
         const twinkle = 1 + twinkleAmp * Math.sin(elapsed * (4.2 + 2.4 * face.happy) + side);
         if (eyeStyle === 'xiaohei') {
-          drawSparkle(paint, pupilX + side * 3.0, pupilY - 1.2, 2.7 * twinkle, 0, '#ffe078');
-          ellipse(paint, pupilX - side * 2.5, pupilY + 2.7, 1.15, 1.15, ivory);
+          drawSparkle(paint, pupilX + side * 3.0 * pupilScale, pupilY - 1.2 * pupilScale, 2.7 * twinkle * pupilScale, 0, '#ffe078');
+          ellipse(paint, pupilX - side * 2.5 * pupilScale, pupilY + 2.7 * pupilScale, 1.15 * pupilScale, 1.15 * pupilScale, ivory);
         } else if (eyeStyle === 'starry') {
           const twinkleAlt = 1 + twinkleAmp * Math.cos(elapsed * (4.6 + 2.4 * face.happy) - side);
-          drawSparkle(paint, pupilX - 2.5, pupilY - 1.7, 3.5 * twinkle, 0, '#ffa3be');
-          drawSparkle(paint, pupilX + 3.3, pupilY + 1.8, 2.7 * twinkleAlt, 0, '#ffdc70');
-          ellipse(paint, pupilX + 2.7, pupilY - 3.5, 1.65, 1.65, '#ffffff');
-          ellipse(paint, pupilX - 1.5, pupilY + 3.7, 1.25, 1.25, '#9de8d6');
+          drawSparkle(paint, pupilX - 2.5 * pupilScale, pupilY - 1.7 * pupilScale, 3.5 * twinkle * pupilScale, 0, '#ffa3be');
+          drawSparkle(paint, pupilX + 3.3 * pupilScale, pupilY + 1.8 * pupilScale, 2.7 * twinkleAlt * pupilScale, 0, '#ffdc70');
+          ellipse(paint, pupilX + 2.7 * pupilScale, pupilY - 3.5 * pupilScale, 1.65 * pupilScale, 1.65 * pupilScale, '#ffffff');
+          ellipse(paint, pupilX - 1.5 * pupilScale, pupilY + 3.7 * pupilScale, 1.25 * pupilScale, 1.25 * pupilScale, '#9de8d6');
         } else {
-          ellipse(paint, pupilX - 2.6, pupilY - 2.5, 1.9, 1.9, ivory);
-          ellipse(paint, pupilX + 2.4, pupilY + 2.8, .95, .95, ivory);
+          ellipse(paint, pupilX - 2.6 * pupilScale, pupilY - 2.5 * pupilScale, 1.9 * pupilScale, 1.9 * pupilScale, ivory);
+          ellipse(paint, pupilX + 2.4 * pupilScale, pupilY + 2.8 * pupilScale, .95 * pupilScale, .95 * pupilScale, ivory);
         }
       }
     }
@@ -603,7 +641,12 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
   if (lid > 0) {
     paint.globalAlpha = lid;
     paint.beginPath();
-    if (face.happy > .35 && face.crying <= .02) {
+    if (carrySquint > .32) {
+      paint.moveTo(side * 8.4, -5.6);
+      paint.lineTo(-side * 7.0, .6);
+      paint.lineTo(side * 8.4, 6.6);
+      stroke(paint, coat.lid, 2.25);
+    } else if (face.happy > .35 && face.crying <= .02) {
       paint.moveTo(-10.2, 2.4);
       paint.quadraticCurveTo(0, -6.2, 10.2, 2.4);
       stroke(paint, coat.lid, 2.0);
@@ -612,6 +655,13 @@ function drawEye(paint, side, eyeOffset, gaze, face, eyeStyle, elapsed, coat) {
       paint.quadraticCurveTo(0, MathUtils.lerp(7, -3, face.crying), 10.7, .8 + side * face.crying);
       stroke(paint, coat.lid, 1.9);
     }
+  }
+  if (carry > .04) {
+    paint.globalAlpha = .86 * carry;
+    paint.beginPath();
+    paint.moveTo(side * 10.6, -11.4 + 2.2 * carrySquint);
+    paint.quadraticCurveTo(side * 2.5, -14.8 + 1.8 * carrySquint, -side * 5.8, -16.2 + 1.6 * carrySquint);
+    stroke(paint, coat.lid, 1.85);
   }
   if (face.crying > .01) {
     paint.globalAlpha = .75 * face.crying;
@@ -780,52 +830,90 @@ function drawTailMarkings(paint, pts, coatKey) {
   paint.restore();
 }
 
-function drawBodyMarkings(paint, bodyPath, coatKey, crouch) {
+function drawBodyMarkings(paint, bodyPath, coatKey, crouch, carry = 0, kickLx = 0, kickLy = 0, kickRx = 0, kickRy = 0) {
   if (coatKey === 'black') return;
   paint.save();
   paint.clip(bodyPath);
   if (coatKey === 'siamese') {
-    ellipse(paint, MathUtils.lerp(-40, -34, crouch), MathUtils.lerp(-1, 3, crouch), 14, 10, '#4a342a');
-    ellipse(paint, MathUtils.lerp(40, 48, crouch), MathUtils.lerp(-1, 2, crouch), 14, 10, '#4a342a');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(-40, -34, crouch), -22 + kickLx, carry),
+      MathUtils.lerp(MathUtils.lerp(-1, 3, crouch), 31 + kickLy, carry),
+      MathUtils.lerp(14, 12.5, carry), MathUtils.lerp(10, 13, carry), '#4a342a');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(40, 48, crouch), 22 + kickRx, carry),
+      MathUtils.lerp(MathUtils.lerp(-1, 2, crouch), 31 + kickRy, carry),
+      MathUtils.lerp(14, 12.5, carry), MathUtils.lerp(10, 13, carry), '#4a342a');
     paint.globalAlpha = .52;
-    ellipse(paint, MathUtils.lerp(0, 14, crouch), MathUtils.lerp(-56, -34, crouch), 36, MathUtils.lerp(44, 26, crouch), '#dec8ad');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(0, 14, crouch), 0, carry),
+      MathUtils.lerp(MathUtils.lerp(-56, -34, crouch), -36, carry),
+      MathUtils.lerp(36, 26, carry), MathUtils.lerp(MathUtils.lerp(44, 26, crouch), 50, carry), '#dec8ad');
   } else if (coatKey === 'tabby' || coatKey === 'orange') {
     const cream = coatKey === 'tabby' ? '#f9f5ee' : '#fff8ed';
     const stripe = coatKey === 'tabby' ? '#443b35' : '#ce742c';
     // Natural chest bib + soft pear belly + cute white foot socks
-    ellipse(paint, MathUtils.lerp(0, -14, crouch), MathUtils.lerp(-106, -12, crouch), 22, MathUtils.lerp(24, 16, crouch), cream);
-    ellipse(paint, MathUtils.lerp(0, 8, crouch), MathUtils.lerp(-48, 0, crouch), 25, MathUtils.lerp(42, 16, crouch), cream);
-    ellipse(paint, MathUtils.lerp(-41, -36, crouch), 0, 12, 7.5, cream);
-    ellipse(paint, MathUtils.lerp(41, 46, crouch), 0, 12, 7.5, cream);
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(0, -14, crouch), 0, carry),
+      MathUtils.lerp(MathUtils.lerp(-106, -12, crouch), -96, carry),
+      MathUtils.lerp(22, 16, carry), MathUtils.lerp(MathUtils.lerp(24, 16, crouch), 28, carry), cream);
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(0, 8, crouch), 0, carry),
+      MathUtils.lerp(MathUtils.lerp(-48, 0, crouch), -26, carry),
+      MathUtils.lerp(25, 20, carry), MathUtils.lerp(MathUtils.lerp(42, 16, crouch), 44, carry), cream);
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(-41, -36, crouch), -22 + kickLx, carry),
+      MathUtils.lerp(0, 33 + kickLy, carry),
+      MathUtils.lerp(12, 12, carry), MathUtils.lerp(7.5, 10, carry), cream);
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(41, 46, crouch), 22 + kickRx, carry),
+      MathUtils.lerp(0, 33 + kickRy, carry),
+      MathUtils.lerp(12, 12, carry), MathUtils.lerp(7.5, 10, carry), cream);
     if (crouch < .65) {
       paint.globalAlpha = 1 - MathUtils.smoothstep(crouch, .2, .65);
+      const flankX = MathUtils.lerp(58, 43, carry);
+      const midX = MathUtils.lerp(42, 31, carry);
+      const reachScale = MathUtils.lerp(1, .74, carry);
+      const yShift = 10 * carry;
       for (const side of [-1, 1]) {
         for (const [y0, y1, reach] of [[-96, -88, 28], [-74, -67, 30], [-52, -46, 26]]) {
-          drawTaperStripe(paint, side * 58, y0, side * 42, (y0 + y1) * .5, side * reach, y1, 3.4, stripe);
+          drawTaperStripe(paint, side * flankX, y0 + yShift, side * midX, (y0 + y1) * .5 + yShift,
+            side * reach * reachScale, y1 + yShift, 3.2, stripe);
         }
       }
     }
     if (crouch > .25) {
-      paint.globalAlpha = MathUtils.smoothstep(crouch, .25, .75);
+      paint.globalAlpha = MathUtils.smoothstep(crouch, .25, .75) * (1 - carry);
       for (const xx of [-6, 14, 34]) {
         drawTaperStripe(paint, xx, -66, xx + 4, -46, xx + 2, -26, 3.4, stripe);
       }
     }
   } else if (coatKey === 'ragdoll') {
     paint.globalAlpha = .54;
-    ellipse(paint, MathUtils.lerp(-48, 14, crouch), MathUtils.lerp(-54, -46, crouch), MathUtils.lerp(18, 34, crouch), MathUtils.lerp(30, 18, crouch), '#a8968a');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(-48, 14, crouch), -34, carry),
+      MathUtils.lerp(MathUtils.lerp(-54, -46, crouch), -36, carry),
+      MathUtils.lerp(MathUtils.lerp(18, 34, crouch), 14, carry),
+      MathUtils.lerp(MathUtils.lerp(30, 18, crouch), 36, carry), '#a8968a');
     if (crouch < .7) {
       paint.globalAlpha = .54 * (1 - MathUtils.smoothstep(crouch, .2, .7));
-      ellipse(paint, 48, -54, 18, 30, '#a8968a');
+      ellipse(paint, MathUtils.lerp(48, 34, carry), MathUtils.lerp(-54, -36, carry),
+        MathUtils.lerp(18, 14, carry), MathUtils.lerp(30, 36, carry), '#a8968a');
       paint.globalAlpha = 1;
-      ellipse(paint, 0, -96, 32, 16, '#fffdf9');
+      ellipse(paint, 0, MathUtils.lerp(-96, -92, carry), MathUtils.lerp(32, 22, carry), MathUtils.lerp(16, 18, carry), '#fffdf9');
     }
   } else if (coatKey === 'calico') {
-    ellipse(paint, MathUtils.lerp(-38, -2, crouch), MathUtils.lerp(-74, -48, crouch), 28, MathUtils.lerp(34, 24, crouch), '#e68a42');
-    ellipse(paint, MathUtils.lerp(40, 42, crouch), MathUtils.lerp(-48, -32, crouch), 26, MathUtils.lerp(32, 24, crouch), '#2c2a2c');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(-38, -2, crouch), -28, carry),
+      MathUtils.lerp(MathUtils.lerp(-74, -48, crouch), -56, carry),
+      MathUtils.lerp(28, 22, carry), MathUtils.lerp(MathUtils.lerp(34, 24, crouch), 38, carry), '#e68a42');
+    ellipse(paint,
+      MathUtils.lerp(MathUtils.lerp(40, 42, crouch), 28, carry),
+      MathUtils.lerp(MathUtils.lerp(-48, -32, crouch), -24, carry),
+      MathUtils.lerp(26, 21, carry), MathUtils.lerp(MathUtils.lerp(32, 24, crouch), 36, carry), '#2c2a2c');
     if (crouch < .6) {
       paint.globalAlpha = 1 - MathUtils.smoothstep(crouch, .2, .6);
-      ellipse(paint, 36, -98, 22, 22, '#e68a42');
+      ellipse(paint, MathUtils.lerp(36, 26, carry), MathUtils.lerp(-98, -86, carry),
+        MathUtils.lerp(22, 16, carry), MathUtils.lerp(22, 20, carry), '#e68a42');
     }
   }
   paint.restore();
@@ -901,11 +989,61 @@ function drawHeadMarkings(paint, coatKey, featureX, featureY) {
   paint.restore();
 }
 
+function drawCarrySweatDrop(paint, amount, elapsed) {
+  if (amount <= .06) return;
+  const cycle = (elapsed * .74) % 1;
+  const fade = MathUtils.smoothstep(cycle, 0, .16) * (1 - MathUtils.smoothstep(cycle, .76, 1));
+  const alpha = amount * fade;
+  if (alpha <= .02) return;
+  const x = 33.5;
+  const y = -25 + cycle * 9.5;
+  const s = .88 + .14 * Math.sin(cycle * Math.PI);
+  paint.save();
+  paint.globalAlpha = alpha;
+  paint.translate(x, y);
+  paint.scale(s, s);
+  paint.beginPath();
+  paint.moveTo(0, -7.2);
+  paint.bezierCurveTo(3.6, -2.2, 5.0, 1.4, 4.4, 4.0);
+  paint.bezierCurveTo(3.8, 6.8, -3.8, 6.8, -4.4, 4.0);
+  paint.bezierCurveTo(-5.0, 1.4, -3.6, -2.2, 0, -7.2);
+  paint.closePath();
+  stroke(paint, ivory, 2.8);
+  fillShape(paint, '#74ceff');
+  stroke(paint, '#2e658f', 1.15);
+  ellipse(paint, -1.4, 1.8, 1.1, 1.8, '#e8f8ff', -.25);
+  paint.restore();
+}
+
+function drawCarryStruggleLines(paint, amount, elapsed) {
+  if (amount <= .08) return;
+  const pulse = .55 + .45 * Math.sin(elapsed * 16);
+  paint.save();
+  paint.globalAlpha = amount * (.62 + .34 * pulse);
+  for (const side of [-1, 1]) {
+    const jitter = Math.sin(elapsed * 14 + side * 1.6) * 2.0;
+    // Upper arc near front paddling paws
+    paint.beginPath();
+    paint.arc(side * 44, -44 + jitter, 9.0, side < 0 ? Math.PI * .78 : -Math.PI * .22,
+      side < 0 ? Math.PI * 1.22 : Math.PI * .22);
+    stroke(paint, '#343a4888', 3.4);
+    stroke(paint, ivory, 1.75);
+
+    // Lower arc near dangling kicking hind feet
+    paint.beginPath();
+    paint.arc(side * 37, 27 - jitter, 8.2, side < 0 ? Math.PI * .74 : -Math.PI * .26,
+      side < 0 ? Math.PI * 1.18 : Math.PI * .18);
+    stroke(paint, '#343a4888', 3.2);
+    stroke(paint, ivory, 1.65);
+  }
+  paint.restore();
+}
+
 function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicBlend = 0, headphoneStyle = 'cream', coatKey = 'black') {
   const coat = catCoatPalettes[coatKey] ?? catCoatPalettes.black;
   paint.save();
   positionHead(paint, face);
-  const closed = Math.max(face.closed, face.crying);
+  const closed = Math.max(face.closed, face.crying, face.carrySquint ?? 0);
   const eyeOffset = resolveFaceGaze(gaze, reaction.tension, closed);
   const featureX = eyeOffset.x * .82;
   const featureY = eyeOffset.y * .82;
@@ -925,6 +1063,28 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicB
   ellipse(paint, .8 + featureX, 13.8 + featureY, 2.8, 1.35, coat.nose, -.1);
   if (reaction.mouth > .04) {
     ellipse(paint, featureX * .85, 22 + featureY * .65, 4.1, 1 + 4.5 * reaction.mouth, '#d392a6');
+  } else if ((face.carry ?? 0) > .05) {
+    const carry = face.carry;
+    const squint = face.carrySquint ?? 0;
+    const mx = featureX * .85;
+    const my = 21.6 + featureY * .62;
+    const wobble = Math.sin(elapsed * 18) * .65 * carry;
+    paint.globalAlpha = MathUtils.smoothstep(carry, .05, .38);
+    if (squint > .34) {
+      // Cute flustered wavy mouth while squeezing eyes
+      paint.beginPath();
+      paint.moveTo(mx - 5.2, my + 1.0 + wobble * .4);
+      paint.quadraticCurveTo(mx - 2.6, my - 2.2 - wobble * .5, mx, my + .8 + wobble * .3);
+      paint.quadraticCurveTo(mx + 2.6, my - 2.2 + wobble * .5, mx + 5.2, my + 1.0 - wobble * .4);
+      stroke(paint, coatKey === 'siamese' ? ivory : coat.lid, 1.75);
+    } else {
+      // Startled small open "o" mouth
+      const openH = 2.0 + 1.35 * Math.abs(Math.sin(elapsed * 6.8)) + .65 * Math.abs(wobble);
+      ellipse(paint, mx, my + .4, 3.6, openH, '#e08da6');
+      paint.beginPath();
+      paint.ellipse(mx, my + .4, 3.6, openH, 0, 0, Math.PI * 2);
+      stroke(paint, '#7c3f53', .95);
+    }
   } else if (face.crying > .01) {
     paint.globalAlpha = .85 * face.crying;
     paint.beginPath();
@@ -943,30 +1103,33 @@ function drawHead(paint, gaze, reaction, face, twitch, eyeStyle, elapsed, musicB
   }
   paint.globalAlpha = 1;
   drawWhiskers(paint, coat.whisker, 1.05, twitch, featureX, featureY);
+  drawCarrySweatDrop(paint, face.carry ?? 0, elapsed);
   drawHeadphones(paint, musicBlend, elapsed, headphoneStyle);
   paint.restore();
 }
 
-function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = false, coatKey = 'black') {
+function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, mode = 'over', coatKey = 'black', carry = 0) {
   const coat = catCoatPalettes[coatKey] ?? catCoatPalettes.black;
-  const stand = 1 - crouch;
+  const stand = (1 - crouch) * (1 - carry);
   const outward = side * endX;
   const splay = MathUtils.smoothstep(outward, 33, 82) * stand;
   const crossing = MathUtils.smoothstep(-outward, 13, 104) * stand;
   const reach = Math.max(splay, crossing);
-  const standRootX = side * (32 + 15 * splay - 17 * crossing);
-  const standRootY = (-66 + 13 * splay + 29 * crossing) * bodyHeight;
-  const rootX = MathUtils.lerp(standRootX, side < 0 ? -26 : -14, crouch);
-  const rootY = MathUtils.lerp(standRootY, -18, crouch);
+  const standRootX = side * (29 + 7 * splay - 15 * crossing);
+  const standRootY = (-72 + 8 * splay + 26 * crossing) * bodyHeight;
+  const baseRootX = MathUtils.lerp(standRootX, side < 0 ? -26 : -14, crouch);
+  const baseRootY = MathUtils.lerp(standRootY, -18, crouch);
+  const rootX = MathUtils.lerp(baseRootX, side * 18.5, carry);
+  const rootY = MathUtils.lerp(baseRootY, -86, carry);
   const dx = endX - rootX;
   const dy = endY - rootY;
   const length = Math.hypot(dx, dy);
-  const stretch = Math.max(reach, MathUtils.smoothstep(length, 46, 74));
-  const shoulderHalfWidth = 8.5 + 2.2 * stretch;
-  const forearmHalfWidth = 7 + 2.1 * stretch;
-  const wristHalfWidth = 6.2 + 1.7 * stretch;
+  const stretch = Math.max(reach, MathUtils.smoothstep(length, 46, 74)) * (1 - .55 * carry);
+  const shoulderHalfWidth = MathUtils.lerp(8.6 + 1.9 * stretch, 7.6, carry);
+  const forearmHalfWidth = MathUtils.lerp(7.1 + 1.8 * stretch, 6.8, carry);
+  const wristHalfWidth = MathUtils.lerp(6.2 + 1.5 * stretch, 6.0, carry);
   const wrist = length * .79;
-  const tip = length + 9.5;
+  const tip = length + 9.2;
   const padSlope = MathUtils.clamp(-dx / Math.max(1, dy), -.52, .52) * (1 - stretch);
   const padX = y => (y - length) * padSlope;
   const bow = -side * 5 * splay;
@@ -978,26 +1141,33 @@ function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = fals
   paint.translate(rootX, rootY);
   paint.rotate(Math.atan2(-dx, dy));
 
-  paint.beginPath();
-  paint.moveTo(-shoulderHalfWidth, 0);
-  paint.bezierCurveTo(upperCurve - shoulderHalfWidth, length * .32,
-    lowerCurve - forearmHalfWidth, length * .61, wristX - wristHalfWidth, wrist);
-  paint.bezierCurveTo(padX(length * .91) - wristHalfWidth, length * .91,
-    padX(length - 3.7) - 9.7, length - 3.7, padX(length + .8) - 9.7, length + .8);
-  paint.bezierCurveTo(padX(length + 7) - 9.7, length + 7, tipX - 6.1, tip, tipX, tip);
-  paint.bezierCurveTo(tipX + 6.1, tip, padX(length + 7) + 9.7, length + 7,
-    padX(length + .8) + 9.7, length + .8);
-  paint.bezierCurveTo(padX(length - 3.7) + 9.7, length - 3.7,
-    padX(length * .91) + wristHalfWidth, length * .91, wristX + wristHalfWidth, wrist);
-  paint.bezierCurveTo(lowerCurve + forearmHalfWidth, length * .61,
-    upperCurve + shoulderHalfWidth, length * .32, shoulderHalfWidth, 0);
-  paint.bezierCurveTo(shoulderHalfWidth, -shoulderHalfWidth * .55,
-    -shoulderHalfWidth, -shoulderHalfWidth * .55, -shoulderHalfWidth, 0);
-  paint.closePath();
-  if (outline) {
+  const traceArmContour = closedCap => {
+    paint.beginPath();
+    paint.moveTo(-shoulderHalfWidth, 0);
+    paint.bezierCurveTo(upperCurve - shoulderHalfWidth, length * .32,
+      lowerCurve - forearmHalfWidth, length * .61, wristX - wristHalfWidth, wrist);
+    paint.bezierCurveTo(padX(length * .91) - wristHalfWidth, length * .91,
+      padX(length - 3.7) - 9.4, length - 3.7, padX(length + .8) - 9.4, length + .8);
+    paint.bezierCurveTo(padX(length + 7) - 9.4, length + 7, tipX - 6.0, tip, tipX, tip);
+    paint.bezierCurveTo(tipX + 6.0, tip, padX(length + 7) + 9.4, length + 7,
+      padX(length + .8) + 9.4, length + .8);
+    paint.bezierCurveTo(padX(length - 3.7) + 9.4, length - 3.7,
+      padX(length * .91) + wristHalfWidth, length * .91, wristX + wristHalfWidth, wrist);
+    paint.bezierCurveTo(lowerCurve + forearmHalfWidth, length * .61,
+      upperCurve + shoulderHalfWidth, length * .32, shoulderHalfWidth, 0);
+    if (closedCap) {
+      paint.bezierCurveTo(shoulderHalfWidth, -shoulderHalfWidth * .55,
+        -shoulderHalfWidth, -shoulderHalfWidth * .55, -shoulderHalfWidth, 0);
+      paint.closePath();
+    }
+  };
+
+  if (mode === 'outline') {
+    traceArmContour(true);
     stroke(paint, ivory, silhouetteWidth);
     if (coat.rim) stroke(paint, coat.rim, 2.0);
-  } else {
+  } else if (mode === 'under') {
+    traceArmContour(true);
     if (coat.arm !== coat.paw) {
       const armGrad = paint.createLinearGradient(0, 0, 0, tip);
       armGrad.addColorStop(0, coat.arm);
@@ -1008,15 +1178,32 @@ function drawArm(paint, side, endX, endY, bodyHeight, crouch = 0, outline = fals
     } else {
       fillShape(paint, coat.arm);
     }
-    const innerEdge = 1 - splay;
+  } else {
+    traceArmContour(true);
+    const fadeEnd = MathUtils.lerp(.30, .06, crouch);
+    const armGrad = paint.createLinearGradient(0, -shoulderHalfWidth * .35, 0, tip);
+    armGrad.addColorStop(0, `${coat.arm}00`);
+    armGrad.addColorStop(fadeEnd, coat.arm);
+    if (coat.arm !== coat.paw) {
+      armGrad.addColorStop(Math.max(fadeEnd + .18, .54), coat.arm);
+      armGrad.addColorStop(.83, coat.paw);
+      armGrad.addColorStop(1, coat.paw);
+    } else {
+      armGrad.addColorStop(1, coat.arm);
+    }
+    fillShape(paint, armGrad);
+
+    const innerEdge = (1 - .78 * splay);
     if (innerEdge > .02) {
+      traceArmContour(false);
       const edge = paint.createLinearGradient(0, 0, 0, tip);
-      edge.addColorStop(0, coat.arm);
-      edge.addColorStop(.38, coat.armEdge[0]);
+      edge.addColorStop(0, `${coat.armEdge[0]}00`);
+      edge.addColorStop(MathUtils.lerp(.16, .04, crouch), `${coat.armEdge[0]}00`);
+      edge.addColorStop(.42, coat.armEdge[0]);
       edge.addColorStop(.85, coat.armEdge[1]);
       edge.addColorStop(1, `${coat.armEdge[1]}00`);
       paint.globalAlpha *= innerEdge;
-      stroke(paint, edge, 1.35);
+      stroke(paint, edge, 1.3);
     }
   }
   paint.restore();
@@ -1047,8 +1234,8 @@ export function createMidnightCat(floatingLayer, {
   const pad = new Vector3(0, -.050, .043);
   const pointer = new Vector2();
   const gaze = new Vector2();
-  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0, happy: 0 };
-  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0, happy: 0 };
+  const reaction = { tension: 0, squint: 0, yaw: 0, pitch: 0, roll: 0, blush: 0, mouth: 0, crying: 0, doze: 0, happy: 0, carry: 0, carrySquint: 0 };
+  const face = { x: 0, y: headRestY, angle: 0, closed: 0, crying: 0, happy: 0, carry: 0, carrySquint: 0 };
   const anchor = new Vector3();
   const ground = new Vector2();
   let scale = 1;
@@ -1057,6 +1244,14 @@ export function createMidnightCat(floatingLayer, {
   let elapsed = 0;
   let fire = 0;
   let crouch = 0;
+  let carried = false;
+  let carryBlend = 0;
+  let carryElapsed = 0;
+  let carrySwing = 0;
+  let carrySwingVel = 0;
+  let carryBobY = 0;
+  let carryBobVel = 0;
+  let carryMotionEnergy = 0;
   let musicMode = false;
   let musicBlend = 0;
   let bobPos = 0;
@@ -1098,10 +1293,11 @@ export function createMidnightCat(floatingLayer, {
   }
 
   function containsHeadPoint(x, y) {
+    const liftY = (-22 + carryBobY) * carryBlend;
     paint.save();
     paint.resetTransform();
     positionHead(paint, face);
-    const hit = paint.isPointInPath(headShape, (x - ground.x) / scale, (y - ground.y) / scale);
+    const hit = paint.isPointInPath(headShape, (x - ground.x) / scale, (y - ground.y) / scale - liftY);
     paint.restore();
     return hit;
   }
@@ -1115,6 +1311,25 @@ export function createMidnightCat(floatingLayer, {
     setCrouch(amount) {
       crouch = amount;
       if (amount > .05) tailMotion = null;
+    },
+    setCarried(active) {
+      const next = Boolean(active);
+      if (next === carried) return;
+      carried = next;
+      if (carried) {
+        carryElapsed = 0;
+        tailMotion = null;
+        carryBobVel = -54;
+        carrySwingVel += (Math.random() < .5 ? -1 : 1) * .95;
+      } else {
+        bobVel += 26;
+      }
+    },
+    pushCarryMotion(dx, dy) {
+      if (!carried) return;
+      carrySwingVel += MathUtils.clamp(dx * .048, -2.2, 2.2);
+      carryBobVel += MathUtils.clamp(-dy * .78, -32, 32);
+      carryMotionEnergy = Math.min(1, carryMotionEnergy + Math.hypot(dx, dy) * .022);
     },
     setCatCoat(coat) {
       if (Object.hasOwn(midnightCatCoats, coat)) {
@@ -1162,68 +1377,88 @@ export function createMidnightCat(floatingLayer, {
       }
     },
     setReaction({ tension = 0, squint = 0, yaw = 0, pitch = 0, roll = 0, blush = 0, mouth = 0,
-      crying = 0, doze = 0, happy = 0 } = {}) {
-      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze, happy });
+      crying = 0, doze = 0, happy = 0, carry = 0, carrySquint = 0 } = {}) {
+      Object.assign(reaction, { tension, squint, yaw, pitch, roll, blush, mouth, crying, doze, happy, carry, carrySquint });
     },
     update(seconds) {
       elapsed += seconds;
-      fire = MathUtils.damp(fire, reaction.tension, reaction.tension > fire ? 10 : 6, seconds);
+      carryBlend = MathUtils.damp(carryBlend, carried ? 1 : 0, carried ? 11 : 12, seconds);
+      if (carried) carryElapsed += seconds;
+      carrySwingVel += (-34 * carrySwing - 6.2 * carrySwingVel) * seconds;
+      carrySwing = MathUtils.clamp(carrySwing + carrySwingVel * seconds, -.36, .36);
+      carryBobVel += (-140 * carryBobY - 14 * carryBobVel) * seconds;
+      carryBobY = MathUtils.clamp(carryBobY + carryBobVel * seconds, -14, 14);
+      carryMotionEnergy = MathUtils.damp(carryMotionEnergy, 0, 3.0, seconds);
+      if (!carried && carryBlend < .02) {
+        carrySwing = MathUtils.damp(carrySwing, 0, 14, seconds);
+        carrySwingVel = MathUtils.damp(carrySwingVel, 0, 14, seconds);
+      }
+      fire = MathUtils.damp(fire, reaction.tension * (1 - carryBlend), reaction.tension > fire ? 10 : 6, seconds);
       musicBlend = MathUtils.damp(musicBlend, musicMode ? 1 : 0, musicMode ? 9 : 11, seconds);
       bobVel += (-180 * bobPos - 17 * bobVel) * seconds;
       bobPos = MathUtils.clamp(bobPos + bobVel * seconds, -1, 2);
       tapEnergy = MathUtils.damp(tapEnergy, 0, 6.5, seconds);
       tapLean = MathUtils.damp(tapLean, leanTarget * tapEnergy, 16, seconds);
       tailFlick = MathUtils.damp(tailFlick, 0, 11, seconds);
-      tailWag += seconds * (2.3 + 4.8 * tapEnergy + 3.2 * reaction.tension + 2.8 * musicBlend * (1 - crouch));
-      const pointerX = pointer.x * (1 - reaction.doze) * (1 - .7 * reaction.happy);
-      const pointerY = pointer.y * (1 - reaction.doze) * (1 - .7 * reaction.happy);
-      const tensionDown = reaction.tension * (1 - reaction.doze);
-      const stand = 1 - crouch;
-      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze;
-      gaze.x = MathUtils.damp(gaze.x, pointerX * 8.5, 15, seconds);
-      gaze.y = MathUtils.damp(gaze.y, pointerY * -8.5, 15, seconds);
+      tailWag += seconds * (2.3 + 4.8 * tapEnergy + 3.2 * reaction.tension + 2.8 * musicBlend * (1 - crouch) + 4.2 * carryBlend);
+      const pointerX = pointer.x * (1 - reaction.doze) * (1 - .7 * reaction.happy) * (1 - .75 * carryBlend);
+      const pointerY = pointer.y * (1 - reaction.doze) * (1 - .7 * reaction.happy) * (1 - .75 * carryBlend);
+      const tensionDown = reaction.tension * (1 - reaction.doze) * (1 - carryBlend);
+      const effectiveCrouch = crouch * (1 - carryBlend);
+      const stand = 1 - effectiveCrouch;
+      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze * (1 - carryBlend);
+      const carryGazeX = Math.sin(carryElapsed * 3.1) * 3.2 * carryBlend - carrySwing * 14 * carryBlend;
+      const carryGazeY = (2.6 + Math.sin(carryElapsed * 4.7) * 1.4) * carryBlend;
+      gaze.x = MathUtils.damp(gaze.x, pointerX * 8.5 + carryGazeX, 15, seconds);
+      gaze.y = MathUtils.damp(gaze.y, pointerY * -8.5 + carryGazeY, 15, seconds);
       face.x = MathUtils.damp(face.x,
-        (pointerX * 9.5 + tapLean * 4.2 + reaction.yaw * 16) * stand - 36 * crouch, 11, seconds);
+        (pointerX * 9.5 + tapLean * 4.2 + reaction.yaw * 16) * stand - 36 * effectiveCrouch, 11, seconds);
       face.y = MathUtils.damp(face.y,
-        MathUtils.lerp(headRestY - pointerY * 6.5 + reaction.pitch * 24 + tensionDown * 8 + bobPos * 4.5,
-          -28 + 1.8 * napBreath, crouch), 11, seconds);
+        MathUtils.lerp(headRestY - pointerY * 6.5 + reaction.pitch * 24 + tensionDown * 8 + bobPos * 4.5 - 3 * carryBlend,
+          -28 + 1.8 * napBreath, effectiveCrouch), 11, seconds);
       face.angle = MathUtils.damp(face.angle,
         (pointerX * .095 - pointerX * pointerY * .03 + tapLean * .068 + reaction.roll * .85) * stand
-          + (-.24 - .018 * napBreath) * crouch, 11, seconds);
+          + (-.24 - .018 * napBreath) * effectiveCrouch + carrySwing * .34 * carryBlend, 11, seconds);
       face.closed = MathUtils.damp(face.closed, reaction.squint, 13, seconds);
       face.crying = MathUtils.damp(face.crying, reaction.crying, 12, seconds);
       face.happy = MathUtils.damp(face.happy, reaction.happy, 11, seconds);
+      face.carry = MathUtils.damp(face.carry, Math.max(reaction.carry, carryBlend), 13, seconds);
+      const targetCarrySquint = Math.max(reaction.carrySquint,
+        carryBlend * MathUtils.smoothstep(carryMotionEnergy, .48, .88));
+      face.carrySquint = MathUtils.damp(face.carrySquint, targetCarrySquint, 14, seconds);
 
-      if (!tailMotion && crouch < .1 && elapsed >= nextTailMood) {
+      if (!tailMotion && effectiveCrouch < .1 && carryBlend < .1 && elapsed >= nextTailMood) {
         let next = Math.floor(Math.random() * (tailMoods.length - 1));
         if (next >= tailMoodIndex) next++;
         tailMoodIndex = next;
         const mood = tailMoods[tailMoodIndex];
         nextTailMood = elapsed + mood.min + Math.random() * (mood.max - mood.min);
       }
-      const activeMood = crouch > .25 ? { side: 1, rel: tailSleepRel } : tailMoods[tailMoodIndex];
-      const desiredSide = tailMotion ? 1 : activeMood.side;
-      tailMirror = MathUtils.damp(tailMirror, desiredSide, tailMotion ? 22 : 5.5, seconds);
-      tailRootY = MathUtils.damp(tailRootY, MathUtils.lerp(desiredSide < 0 ? -44 : -34, -14, crouch), 8, seconds);
+      const activeMood = effectiveCrouch > .25 ? { side: 1, rel: tailSleepRel } : tailMoods[tailMoodIndex];
+      const desiredSide = tailMotion || carryBlend > .2 ? 1 : activeMood.side;
+      tailMirror = MathUtils.damp(tailMirror, desiredSide, tailMotion || carryBlend > .2 ? 14 : 5.5, seconds);
+      const baseTailRootY = MathUtils.lerp(desiredSide < 0 ? -44 : -34, -14, effectiveCrouch);
+      tailRootY = MathUtils.damp(tailRootY, MathUtils.lerp(baseTailRootY, -22, carryBlend), 10, seconds);
       const moodRel = activeMood.rel;
 
-      if (crouch > .45 && !tailMotion) {
+      if (effectiveCrouch > .45 && !tailMotion) {
         if (elapsed >= sleepTailFlickAt) {
           sleepTailFlickEnd = elapsed + 1.05;
           sleepTailFlickAt = sleepTailFlickEnd + 3.2 + Math.random() * 2.8;
           sleepTailFlickDir = -sleepTailFlickDir;
         }
-      } else if (crouch <= .2) {
+      } else if (effectiveCrouch <= .2) {
         sleepTailFlickAt = elapsed + 2.8 + Math.random() * 2.2;
         sleepTailFlickEnd = -Infinity;
       }
       const sleepFlickRemaining = sleepTailFlickEnd - elapsed;
       const sleepFlickPhase = sleepFlickRemaining > 0 ? 1 - sleepFlickRemaining / 1.05 : -1;
       const sleepFlickWave = sleepFlickPhase >= 0 && sleepFlickPhase <= 1
-        ? Math.sin(Math.PI * sleepFlickPhase) * Math.sin(sleepFlickPhase * Math.PI * 2.2) * sleepTailFlickDir * crouch
+        ? Math.sin(Math.PI * sleepFlickPhase) * Math.sin(sleepFlickPhase * Math.PI * 2.2) * sleepTailFlickDir * effectiveCrouch
         : 0;
 
-      const wagAmp = (.052 + .062 * tapEnergy + .05 * reaction.tension + .065 * musicBlend) * (1 - .68 * crouch);
+      const wagAmp = (.052 + .062 * tapEnergy + .05 * reaction.tension + .065 * musicBlend) * (1 - .68 * effectiveCrouch)
+        + (.095 + .075 * carryMotionEnergy) * carryBlend;
       const steps = Math.max(1, Math.ceil(seconds / .008));
       const dt = seconds / steps;
       const stepStart = elapsed - seconds;
@@ -1236,6 +1471,7 @@ export function createMidnightCat(floatingLayer, {
           let target;
           let k;
           let damp;
+          const restAngle = MathUtils.lerp(moodRel[j], tailCarryRel[j], carryBlend);
           if (motion) {
             const tj = Math.max(0, activeAge - j * .011);
             if (tj < tailWindTime) {
@@ -1247,14 +1483,15 @@ export function createMidnightCat(floatingLayer, {
               k = tailKDown[j];
               damp = tailDDown[j];
             } else {
-              target = moodRel[j] + wagAmp * (.26 + .16 * j) * Math.sin(tailWag - j * .55);
+              target = restAngle + wagAmp * (.26 + .16 * j) * Math.sin(tailWag - j * .55);
               k = tailKUp[j];
               damp = tailDUp[j];
             }
           } else {
             const sleepKick = sleepFlickWave * (j === 0 ? .10 : j === 1 ? .18 : .30);
-            target = moodRel[j] + wagAmp * (.26 + .16 * j) * Math.sin(tailWag - j * .55)
-              + (j === 0 ? tailFlick : tailFlick * .45) + sleepKick;
+            const carryLag = carrySwing * (.14 + .09 * j) * carryBlend;
+            target = restAngle + wagAmp * (.26 + .16 * j) * Math.sin(tailWag - j * .55)
+              + (j === 0 ? tailFlick : tailFlick * .45) + sleepKick + carryLag;
             k = tailKUp[j];
             damp = tailDUp[j];
           }
@@ -1292,27 +1529,63 @@ export function createMidnightCat(floatingLayer, {
       paint.clearRect(0, 0, width, height);
       paint.translate(ground.x, ground.y);
       paint.scale(scale, scale);
-      const grooveBounce = musicBlend * (1 - crouch) * .026 * Math.abs(Math.sin(elapsed * 5.8));
-      const squash = bobPos * .036 * (1 - crouch) + grooveBounce;
-      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze;
-      const bodyWidth = 1 + squash * .75 - .014 * napBreath * crouch;
-      const bodyHeight = 1 - squash + .038 * napBreath * crouch;
-      const activeBody = crouch > .002 ? createBodyPath(crouch) : bodyShape;
+      const effectiveCrouch = crouch * (1 - carryBlend);
+      const grooveBounce = musicBlend * (1 - effectiveCrouch) * (1 - carryBlend) * .026 * Math.abs(Math.sin(elapsed * 5.8));
+      const squash = bobPos * .036 * (1 - effectiveCrouch) * (1 - carryBlend) + grooveBounce;
+      const napBreath = Math.sin(elapsed * 2.1) * reaction.doze * (1 - carryBlend);
+      const carryStretch = MathUtils.clamp(-carryBobY * .0035, -.035, .04) * carryBlend;
+      const bodyWidth = (1 + squash * .75 - .014 * napBreath * effectiveCrouch) * (1 - carryStretch * .45);
+      const bodyHeight = (1 - squash + .038 * napBreath * effectiveCrouch) * (1 + carryStretch);
+
+      const strugglePulse = Math.pow(.5 + .5 * Math.sin(carryElapsed * 2.5 - .6), 2.6);
+      const struggleAmp = MathUtils.clamp(.38 + .62 * strugglePulse + .45 * carryMotionEnergy, 0, 1.15);
+      const kickPhaseL = carryElapsed * 8.4;
+      const kickPhaseR = kickPhaseL + Math.PI;
+      const kickLy = (-2.2 - 5.8 * Math.max(0, Math.sin(kickPhaseL))) * struggleAmp * carryBlend;
+      const kickRy = (-2.2 - 5.8 * Math.max(0, Math.sin(kickPhaseR))) * struggleAmp * carryBlend;
+      const kickLx = (-1.6 - 3.0 * Math.sin(kickPhaseL)) * struggleAmp * carryBlend;
+      const kickRx = (1.6 + 3.0 * Math.sin(kickPhaseR)) * struggleAmp * carryBlend;
+
+      const activeBody = effectiveCrouch > .002 || carryBlend > .002
+        ? createBodyPath(effectiveCrouch, carryBlend, kickLx, kickLy, kickRx, kickRy)
+        : bodyShape;
+
       if (fire > .025) drawFire(paint, fire, elapsed);
-      for (const side of [-1, 1]) {
-        const foot = projectScreen(model, bodyCenterX + side * .110, 0, .168, camera);
-        const fx = MathUtils.lerp((foot.x - ground.x) / scale, side < 0 ? -24 : 36, crouch);
-        const fy = MathUtils.lerp((foot.y - ground.y) / scale, 3, crouch);
-        drawFootShadow(paint, fx, fy);
+      const footShadowAlpha = 1 - MathUtils.smoothstep(carryBlend, 0, .55);
+      if (footShadowAlpha > .01) {
+        paint.save();
+        paint.globalAlpha = footShadowAlpha;
+        for (const side of [-1, 1]) {
+          const foot = projectScreen(model, bodyCenterX + side * .110, 0, .168, camera);
+          const fx = MathUtils.lerp((foot.x - ground.x) / scale, side < 0 ? -24 : 36, effectiveCrouch);
+          const fy = MathUtils.lerp((foot.y - ground.y) / scale, 3, effectiveCrouch);
+          drawFootShadow(paint, fx, fy);
+        }
+        paint.restore();
       }
+
+      const carryLiftY = (-22 + carryBobY) * carryBlend;
+      const scruffPivotY = -162;
+      const carrySquirmAngle = Math.sin(carryElapsed * 8.4) * .026 * struggleAmp;
+      const carryAngle = (carrySwing + carrySquirmAngle) * carryBlend;
+
       const armTargets = paws.map(({ side, wrist }) => {
         const point = projectScreen(wrist, pad.x, pad.y, pad.z, camera);
         const rawX = (point.x - ground.x) / scale;
         const rawY = (point.y - ground.y) / scale;
         const standingY = rawY < 0 ? rawY * bodyHeight : rawY;
-        const x = MathUtils.lerp(rawX, side < 0 ? -50 : -13, crouch);
-        const y = MathUtils.lerp(standingY, side < 0 ? -3 : -4, crouch);
-        return { side, x, y };
+        const baseX = MathUtils.lerp(rawX, side < 0 ? -50 : -13, effectiveCrouch);
+        const baseY = MathUtils.lerp(standingY, side < 0 ? -3 : -4, effectiveCrouch);
+        const paddlePhase = carryElapsed * 8.6 + (side < 0 ? 0 : Math.PI);
+        const paddleUp = Math.sin(paddlePhase) * (3.8 + 8.5 * struggleAmp);
+        const paddleOut = Math.cos(paddlePhase) * (2.0 + 4.8 * struggleAmp) * side;
+        const carryX = side * (19.5 + 2.8 * struggleAmp) + paddleOut - carrySwing * 9;
+        const carryY = -38 - Math.abs(Math.sin(paddlePhase * .5)) * 6 * struggleAmp + paddleUp;
+        return {
+          side,
+          x: MathUtils.lerp(baseX, carryX, carryBlend),
+          y: MathUtils.lerp(baseY, carryY, carryBlend),
+        };
       });
       if (hasTailTarget) {
         const point = projectWorld(tailTarget, camera);
@@ -1324,14 +1597,25 @@ export function createMidnightCat(floatingLayer, {
           tailHitRel = solveTailHit(tailTargetX, tailTargetY);
         }
       }
-      const tailRootX = MathUtils.lerp(45 * tailMirror, 61, crouch);
+      const tailRootX = MathUtils.lerp(MathUtils.lerp(45 * tailMirror, 61, effectiveCrouch), 34 * tailMirror, carryBlend);
       const tailPoints = computeTailChain(tailAngles, tailRootX, tailRootY, tailMirror);
+      const applyCarryPendulum = () => {
+        if (carryBlend <= .001) return;
+        paint.translate(0, scruffPivotY);
+        paint.rotate(carryAngle);
+        paint.translate(0, -scruffPivotY);
+      };
       const applyBodyTransform = () => {
-        paint.translate(0, 4 * crouch);
+        applyCarryPendulum();
+        paint.translate(0, 4 * effectiveCrouch);
         paint.scale(bodyWidth, bodyHeight);
-        paint.translate(0, -4 * crouch);
+        paint.translate(0, -4 * effectiveCrouch);
       };
       const coat = catCoatPalettes[catCoat] ?? catCoatPalettes.black;
+
+      paint.save();
+      paint.translate(0, carryLiftY);
+
       // Lay down the outline before filling the overlapping shapes.
       paint.save();
       applyBodyTransform();
@@ -1340,17 +1624,28 @@ export function createMidnightCat(floatingLayer, {
       stroke(paint, ivory, silhouetteWidth, activeBody);
       if (coat.rim) stroke(paint, coat.rim, 2.0, activeBody);
       paint.restore();
+      paint.save();
+      applyCarryPendulum();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, true, catCoat);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, effectiveCrouch, 'outline', catCoat, carryBlend);
       }
-      const closed = Math.max(face.closed, face.crying);
+      paint.restore();
+      const closed = Math.max(face.closed, face.crying, face.carrySquint ?? 0);
       const eyeOffset = resolveFaceGaze(gaze, reaction.tension, closed);
-      const whiskerTwitch = .55 * Math.sin(elapsed * 2.4) + bobPos * .85 + reaction.tension * .9;
+      const whiskerTwitch = .55 * Math.sin(elapsed * 2.4) + bobPos * .85 + reaction.tension * .9
+        + (1.25 * Math.sin(elapsed * 15) * carryBlend);
       paint.save();
       positionHead(paint, face);
       drawWhiskers(paint, coat.whiskerHalo, 2.6, whiskerTwitch, eyeOffset.x * .82, eyeOffset.y * .82);
       stroke(paint, ivory, silhouetteWidth, headShape);
       if (coat.rim) stroke(paint, coat.rim, 2.0, headShape);
+      paint.restore();
+      // Solid arm base behind body so outward-reaching arms stay 100% opaque outside the torso.
+      paint.save();
+      applyCarryPendulum();
+      for (const arm of armTargets) {
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, effectiveCrouch, 'under', catCoat, carryBlend);
+      }
       paint.restore();
       paint.save();
       applyBodyTransform();
@@ -1358,8 +1653,8 @@ export function createMidnightCat(floatingLayer, {
       drawTailMarkings(paint, tailPoints, catCoat);
       paint.fillStyle = coat.body;
       paint.fill(activeBody);
-      drawBodyMarkings(paint, activeBody, catCoat, crouch);
-      const haunchAlpha = MathUtils.smoothstep(crouch, .35, .95) * .68;
+      drawBodyMarkings(paint, activeBody, catCoat, effectiveCrouch, carryBlend, kickLx, kickLy, kickRx, kickRy);
+      const haunchAlpha = MathUtils.smoothstep(effectiveCrouch, .35, .95) * .68 * (1 - carryBlend);
       if (haunchAlpha > .01) {
         paint.globalAlpha = haunchAlpha;
         paint.beginPath();
@@ -1369,20 +1664,31 @@ export function createMidnightCat(floatingLayer, {
         paint.globalAlpha = 1;
       }
       paint.restore();
+      paint.save();
+      applyCarryPendulum();
       for (const arm of armTargets) {
-        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, crouch, false, catCoat);
+        drawArm(paint, arm.side, arm.x, arm.y, bodyHeight, effectiveCrouch, 'over', catCoat, carryBlend);
       }
+      if (carryBlend > .12) {
+        drawCarryStruggleLines(paint, carryBlend * MathUtils.smoothstep(struggleAmp, .42, 1.05), elapsed);
+      }
+      paint.restore();
       drawHead(paint, gaze, reaction, face, whiskerTwitch, eyeStyle, elapsed, musicBlend, headphoneStyle, catCoat);
       if (tailImpacts.length) {
         drawTailImpacts(paint, tailImpacts, elapsed);
       }
+      paint.restore();
     },
     containsHeadPoint,
     containsScreenPoint(x, y) {
       if (containsHeadPoint(x, y)) return true;
-      const activeBody = crouch > .002 ? createBodyPath(crouch) : bodyShape;
+      const effectiveCrouch = crouch * (1 - carryBlend);
+      const liftY = (-22 + carryBobY) * carryBlend;
+      const activeBody = effectiveCrouch > .002 || carryBlend > .002
+        ? createBodyPath(effectiveCrouch, carryBlend)
+        : bodyShape;
       const localX = (x - ground.x) / scale;
-      const localY = (y - ground.y) / scale;
+      const localY = (y - ground.y) / scale - liftY;
       paint.save();
       paint.resetTransform();
       const hit = paint.isPointInPath(activeBody, localX, localY);
@@ -1390,12 +1696,13 @@ export function createMidnightCat(floatingLayer, {
       return hit;
     },
     projectHead(x, y, target) {
+      const liftY = (-22 + carryBobY) * carryBlend;
       const localX = x * 300;
       const localY = (.102 - y) * 290;
       const cos = Math.cos(face.angle);
       const sin = Math.sin(face.angle);
       const screenX = ground.x + scale * (face.x + localX * cos - localY * sin);
-      const screenY = ground.y + scale * (face.y + localX * sin + localY * cos);
+      const screenY = ground.y + scale * (face.y + liftY + localX * sin + localY * cos);
       return target.set(2 * screenX / viewportWidth - 1, 1 - 2 * screenY / viewportHeight, 0);
     },
     dispose() {
